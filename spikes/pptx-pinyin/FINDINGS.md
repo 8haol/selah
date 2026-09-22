@@ -20,3 +20,14 @@
 1. 在教会 Windows 电脑的 PowerPoint 打开 `evidence/selah-spike-sample.pptx`，确认字体和字号观感。
 2. 把同一文件上传 Google Drive → 用 Google Slides 打开，看字体映射成什么、排版是否保持。
 3. 若 Google Slides 是主要目标格式，Phase 2 直接走 Slides API（教会 Google 账号授权一次），而不是 PPTX 转换。
+
+## 补充（同日晚）— 视觉主题与媒体去重
+
+- 新增 `themes.mjs`（6 套主题：夜空 / 圣殿 / 深海 / 青草地 / 晨光 / 纸）、`render.mjs`（背景栅格化 + HTML 预览 + PPTX）、`snapshot.mjs`（全尺寸 PNG 样张 + 总览图）。
+  样张见 `evidence/themes-contact-sheet.jpg`，PPTX 见 `evidence/selah-themes-sample.pptx`。
+- 背景做法：SVG（渐变 + 高斯模糊光晕 + 颗粒 + 暗角）→ sharp 栅格化为 1920×1080 JPEG → 作为每页背景图嵌入。
+  pptxgenjs 本身不支持渐变背景，"背景 = 图片"是正确抽象，也天然兼容 Google Slides。
+- **pptxgenjs 不去重媒体已证实**：18 页共用 6 张 2.3MB PNG 时 PPTX 达 42MB；换成 40–50KB JPEG 后 1MB。
+  生产实现要么后处理合并重复媒体，要么保证背景图 ≤ 100KB。
+- 标题页用楷体（Windows `KaiTi`）+ 细金线 + 拼音 + 元信息；歌词页左上角小胶囊段落角标（VERSE 1 / CHORUS）；正文加柔和阴影。
+  歌词字号维持 45 / 35 不变。
