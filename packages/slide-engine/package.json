@@ -1,0 +1,24 @@
+{
+  "name": "@selah/slide-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "backgrounds": "node scripts/build-backgrounds.mjs"
+  },
+  "dependencies": {
+    "pinyin-pro": "^3.29.4",
+    "pptxgenjs": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "sharp": "^0.34.0",
+    "typescript": "^5.6.0",
+    "vitest": "^5.0.1"
+  }
+}

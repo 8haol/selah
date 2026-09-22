@@ -1,0 +1,13 @@
+{
+  "name": "selah",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "pnpm --filter @selah/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @selah/web db:generate",
+    "db:migrate": "pnpm --filter @selah/web db:migrate"
+  }
+}
