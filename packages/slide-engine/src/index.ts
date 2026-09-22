@@ -3,3 +3,5 @@ export { parseLyrics, parseHeader, sectionLabel, sectionIdFor, SECTION_HEADER_PA
 export { parseFlow, expandFlow, describeFlow, FlowError } from './flow.js'
 export type { FlowStep } from './flow.js'
 export { annotateLine, annotateSong, polyphonicChoices, isChinese, joinPinyin } from './pinyin.js'
+export { contrastRatio, assertThemeContrast } from './contrast.js'
+export { BUILTIN_THEMES, getTheme } from './themes.js'
