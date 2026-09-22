@@ -12,7 +12,7 @@ export type FlowStep = { kind: 'section'; sectionId: string } | { kind: 'blank';
 const PREFIX_TYPE: Record<string, SectionType> = { V: 'verse', C: 'chorus', B: 'bridge', PC: 'prechorus', I: 'intro', E: 'ending', T: 'tag' }
 const REPEAT = /^[x×*](\d+)$/i
 
-function expandRepeat(tokens: string[], tok: string, out: string[]): boolean {
+function expandRepeat(tok: string, out: string[]): boolean {
   const m = tok.match(REPEAT)
   if (!m) return false
   const n = Number(m[1])
@@ -28,7 +28,7 @@ export function parseFlow(input: string): string[] {
   const compact = /^((PC|[VCBPIET])\d?)+$/i.test(trimmed) && !/\s/.test(trimmed)
   if (compact) {
     const out: string[] = []
-    for (const m of trimmed.toUpperCase().matchAll(/(PC|[VCBIET])(\d?)/g)) {
+    for (const m of trimmed.toUpperCase().matchAll(/(PC|P|[VCBIET])(\d?)/g)) {
       const letter = m[1] === 'P' ? 'PC' : m[1]!
       out.push(letter + (m[2] ?? ''))
     }
@@ -38,7 +38,7 @@ export function parseFlow(input: string): string[] {
   const out: string[] = []
   for (const r of raw) {
     const tok = r.toUpperCase()
-    if (expandRepeat(raw, tok, out)) continue
+    if (expandRepeat(tok, out)) continue
     const suffix = tok.match(/^([A-Z]+\d*)[X×*](\d+)$/)
     if (suffix) {
       const base = suffix[1]!, n = Number(suffix[2])

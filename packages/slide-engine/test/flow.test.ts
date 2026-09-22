@@ -20,6 +20,8 @@ describe('parseFlow', () => {
   it('expands compact form with auto-incrementing verses', () => {
     expect(parseFlow('VCVCBC')).toEqual(['V', 'C', 'V', 'C', 'B', 'C'])
     expect(parseFlow('V1CV2C')).toEqual(['V1', 'C', 'V2', 'C'])
+    expect(parseFlow('VPB')).toEqual(['V', 'PC', 'B'])
+    expect(parseFlow('P')).toEqual(['PC'])
     expect(parseFlow('PCB')).toEqual(['PC', 'B'])
   })
   it('handles repeat suffixes and tokens', () => {
