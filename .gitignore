@@ -1,0 +1,34 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# env
+.env
+.env.*
+!.env.example
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# test
+coverage/
+playwright-report/
+test-results/
+
+# supabase local
+supabase/.branches
+supabase/.temp
