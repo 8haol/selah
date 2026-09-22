@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Selah · 流光背景（实时 WebGL）</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .lyrics{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;color:#fff;
+          font-family:"SimHei","Heiti SC","PingFang SC","Microsoft YaHei",sans-serif;text-shadow:0 .4vh 2vh rgba(0,0,0,.55)}
+  .py{font:3.2vw/1.1 Arial,sans-serif;color:#a6eff7;letter-spacing:.02em}
+  .zh{font-size:4.2vw;font-weight:600;letter-spacing:.06em;line-height:1.2}
+  .hint{position:fixed;left:2vw;bottom:2vh;color:#fff8;font:12px system-ui;letter-spacing:.1em}
+  .badge{position:fixed;top:5vh;left:4vw;color:#d9fafd;border:1.5px solid #d9fafd55;background:#a6eff71f;border-radius:999px;padding:.6vh 1.2vw;font:1.1vw Arial;letter-spacing:.22em}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="badge">VERSE 1</div>
+<div class="lyrics">
+  <div><div class="py">yē hé huá shì wǒ de mù zhě</div><div class="zh">耶和华是我的牧者</div></div>
+  <div><div class="py">wǒ bì bú zhì quē fá</div><div class="zh">我必不致缺乏</div></div>
+  <div><div class="py">tā shǐ wǒ tǎng wò zài qīng cǎo dì shàng</div><div class="zh">他使我躺卧在青草地上</div></div>
+  <div><div class="py">lǐng wǒ zài kě ān xiē de shuǐ biān</div><div class="zh">领我在可安歇的水边</div></div>
+</div>
+<div class="hint">实时着色器渲染 · 零文件体积 · 按 1–4 换配色 · F11 全屏</div>
+<script>
+const canvas = document.getElementById('c')
+const gl = canvas.getContext('webgl')
+const vs = `attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`
+const fs = `
+precision highp float;
+uniform vec2 R; uniform float T; uniform vec3 c0,c1,c2,c3,c4;
+float hash(vec3 p){p=fract(p*0.3183099+.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float noise(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);
+ return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+            mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec3 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*noise(p);p*=2.03;a*=.5;}return s;}
+vec3 pal(float v){v=clamp(v,0.,1.);float t=v*4.;
+ if(t<1.)return mix(c0,c1,t); if(t<2.)return mix(c1,c2,t-1.); if(t<3.)return mix(c2,c3,t-2.); return mix(c3,c4,t-3.);}
+void main(){
+ vec2 uv=gl_FragCoord.xy/R; uv.y=1.-uv.y; float t=T*0.06;
+ float qx=fbm(vec3(uv.x*1.6+3.1,uv.y*2.2,t));
+ float qy=fbm(vec3(uv.x*1.6-1.7,uv.y*2.2+5.3,t+2.1));
+ vec2 w=vec2(uv.x*1.1+(qx-.5)*1.4, uv.y*3.6+(qy-.5)*1.1);
+ float n=fbm(vec3(w,t*1.3+7.7)); n=(n-.5)*1.7+.5;
+ vec2 s=vec2(uv.x*.7+(qx-.5)*.9+11.3, uv.y*7.5+(qy-.5)*2.4+2.9);
+ float rib=fbm(vec3(s,t*.9-3.3)); float streak=pow(max(0.,(rib-.52)/.48),2.2)*.9;
+ float band=exp(-pow((uv.y-.58)/.45,2.));
+ float glow=min(1.,pow(max(0.,n),1.5)*(.5+.5*band)*.85+streak*band);
+ vec3 col=pal(glow);
+ // gentle vignette + film grain
+ float vg=1.-.35*pow(length(uv-.5)*1.3,2.); col*=vg;
+ col+= (hash(vec3(gl_FragCoord.xy,T))-.5)*0.02;
+ gl_FragColor=vec4(col,1.);}`
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(o);return o}
+const prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);gl.useProgram(prog)
+const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW)
+const loc=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0)
+const U=n=>gl.getUniformLocation(prog,n)
+const palettes={1:['#04101F','#0A2E4C','#0E5F7A','#22B3BF','#B8F5F2'],2:['#150818','#3A1638','#7A2E5A','#D98A4F','#FFE3A8'],3:['#04060E','#0A1030','#22307A','#7E6BE0','#D7CCFF'],4:['#06261B','#1B6B47','#3E9B62','#B9DE6A','#FFF6C2']}
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255)
+function setPal(k){const p=palettes[k];['c0','c1','c2','c3','c4'].forEach((n,i)=>gl.uniform3fv(U(n),hex(p[i])))}
+setPal(1); addEventListener('keydown',e=>{if(palettes[e.key])setPal(e.key)})
+function resize(){const d=Math.min(devicePixelRatio,1.5);canvas.width=innerWidth*d*0.5;canvas.height=innerHeight*d*0.5;gl.viewport(0,0,canvas.width,canvas.height)}
+addEventListener('resize',resize);resize()
+const t0=performance.now()
+;(function loop(){gl.uniform2f(U('R'),canvas.width,canvas.height);gl.uniform1f(U('T'),(performance.now()-t0)/1000);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);requestAnimationFrame(loop)})()
+</script>
+</body>
+</html>
