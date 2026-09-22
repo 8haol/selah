@@ -11,7 +11,7 @@ export const MAX_SCALE = 64 / 45
 export const PINYIN_RATIO = 35 / 45
 const BASE_ZH_PT = 45
 
-export interface Cell { zh: string; py: string; widthPt: number }
+export interface Cell { zh: string; py: string; widthPt: number; gapAfter?: boolean }
 export interface Row { cells: Cell[]; widthPt: number }
 export interface SlideLayout { scale: number; zhPt: number; pyPt: number; rowHeightPt: number; rowGapPt: number; rows: Row[]; blockHeightPt: number; topPt: number }
 
@@ -32,16 +32,20 @@ export function measureLatinPt(text: string, sizePt: number): number {
   return em * sizePt
 }
 
-export function cellsFor(line: LyricLine): Array<{ zh: string; py: string }> {
+export function cellsFor(line: LyricLine): Array<{ zh: string; py: string; gapAfter?: boolean }> {
   const chars = [...line.zh]
-  const cells: Array<{ zh: string; py: string }> = []
-  let latin: { zh: string; py: string } | null = null
+  const cells: Array<{ zh: string; py: string; gapAfter?: boolean }> = []
+  let latin: { zh: string; py: string; gapAfter?: boolean } | null = null
+  let pendingGap = false
   chars.forEach((ch, i) => {
-    if (isChinese(ch)) { latin = null; cells.push({ zh: ch, py: line.pinyin[i] ?? '' }); return }
     if (PUNCT.has(ch) || ch === ' ') {
-      const prev = cells[cells.length - 1]
-      if (prev) { prev.zh += ch; return }
+      if (cells.length > 0) pendingGap = true
+      latin = null
+      return
     }
+    if (pendingGap) cells[cells.length - 1]!.gapAfter = true
+    pendingGap = false
+    if (isChinese(ch)) { latin = null; cells.push({ zh: ch, py: line.pinyin[i] ?? '' }); return }
     if (latin) { latin.zh += ch; return }
     latin = { zh: ch, py: '' }
     cells.push(latin)
@@ -64,14 +68,31 @@ export function cellWidthPt(cell: { zh: string; py: string }, zhPt: number, pyPt
 }
 
 export function wrapLine(line: LyricLine, zhPt: number, pyPt: number, maxWidthPt = CONTENT_W_PT): Row[] {
+  const gapPt = 0.5 * zhPt
+  const rowOf = (cells: Cell[]): Row => ({
+    cells,
+    widthPt: cells.reduce((width, cell, index) => width + cell.widthPt + (cell.gapAfter && index < cells.length - 1 ? gapPt : 0), 0),
+  })
   const rows: Row[] = []
-  let cur: Row = { cells: [], widthPt: 0 }
-  for (const c of cellsFor(line)) {
-    const cell: Cell = { ...c, widthPt: cellWidthPt(c, zhPt, pyPt) }
-    if (cur.cells.length > 0 && cur.widthPt + cell.widthPt > maxWidthPt) { rows.push(cur); cur = { cells: [], widthPt: 0 } }
-    cur.cells.push(cell); cur.widthPt += cell.widthPt
+  const remaining: Cell[] = cellsFor(line).map((cell) => ({ ...cell, widthPt: cellWidthPt(cell, zhPt, pyPt) }))
+  while (remaining.length > 0) {
+    let fitCount = 1
+    while (fitCount < remaining.length && rowOf(remaining.slice(0, fitCount + 1)).widthPt <= maxWidthPt) fitCount += 1
+    if (fitCount === remaining.length) {
+      rows.push(rowOf(remaining.splice(0)))
+      break
+    }
+
+    let breakAfter = -1
+    for (let index = 1; index < fitCount; index += 1) {
+      if (remaining[index]!.gapAfter) breakAfter = index
+    }
+    if (breakAfter < 1) {
+      breakAfter = remaining.findIndex((cell, index) => index >= fitCount && cell.gapAfter)
+    }
+    const rowLength = breakAfter >= 1 ? breakAfter + 1 : fitCount
+    rows.push(rowOf(remaining.splice(0, rowLength)))
   }
-  if (cur.cells.length) rows.push(cur)
   return rows
 }
 

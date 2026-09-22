@@ -35,6 +35,7 @@ describe('renderPptx', () => {
     expect(xml2).toContain('>华<')
     expect(xml2).toContain('typeface="SimHei"')
     expect(xml2).toContain('typeface="Arial"')
+    expect(xml2).toContain('wrap="none"')
     // sizes: auto-fit ≥ minimum (sz is pt*100)
     const sizes = [...xml2.matchAll(/sz="(\d+)"/g)].map((m) => Number(m[1]))
     expect(Math.max(...sizes)).toBeGreaterThanOrEqual(4500)

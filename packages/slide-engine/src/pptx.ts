@@ -60,13 +60,13 @@ export async function renderPptx(deck: SlideDeck, opts: RenderPptxOptions): Prom
     lay.rows.forEach((row, ri) => {
       const y = lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)
       let x = CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2
-      for (const cell of row.cells) {
+      for (const [cellIndex, cell] of row.cells.entries()) {
         const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.zh, fontSize: lay.zhPt, bold: true, color: hex(theme.colors.zh), shadow } }
         const runs = cell.py
           ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: lay.pyPt, color: hex(theme.colors.pinyin), breakLine: true } }, zhRun]
           : [zhRun]
-        s.addText(runs, { x: inch(x), y: inch(y), w: inch(cell.widthPt), h: inch(lay.rowHeightPt), margin: 0, align: 'center', valign: 'bottom', fit: 'none' })
-        x += cell.widthPt
+        s.addText(runs, { x: inch(x), y: inch(y), w: inch(cell.widthPt), h: inch(lay.rowHeightPt), margin: 0, align: 'center', valign: 'bottom', fit: 'none', wrap: false })
+        x += cell.widthPt + (cell.gapAfter && cellIndex < row.cells.length - 1 ? 0.5 * lay.zhPt : 0)
       }
     })
   }

@@ -8,14 +8,17 @@ const L = (zh: string): LyricLine => ({ zh, pinyin: annotateLine(zh) })
 const night = getTheme('night')
 
 describe('cellsFor', () => {
-  it('one cell per Chinese character, punctuation attached to the previous cell', () => {
+  it('one cell per Chinese character and drops trailing punctuation', () => {
     const cells = cellsFor(L('我必不致缺乏，'))
-    expect(cells.map((c) => c.zh)).toEqual(['我', '必', '不', '致', '缺', '乏，'])
+    expect(cells.map((c) => c.zh)).toEqual(['我', '必', '不', '致', '缺', '乏'])
     expect(cells[5]!.py).toBe('fá')
+    expect(cells[5]!.gapAfter).toBeFalsy()
   })
-  it('groups consecutive non-Chinese into one cell without pinyin', () => {
+  it('groups consecutive non-Chinese into one cell and marks separator gaps', () => {
     const cells = cellsFor(L('哈利路亚 Amen 阿们'))
-    expect(cells.map((c) => c.zh)).toEqual(['哈', '利', '路', '亚 ', 'Amen ', '阿', '们'])
+    expect(cells.map((c) => c.zh)).toEqual(['哈', '利', '路', '亚', 'Amen', '阿', '们'])
+    expect(cells[3]!.gapAfter).toBe(true)
+    expect(cells[4]!.gapAfter).toBe(true)
     expect(cells[4]!.py).toBe('')
   })
 })
@@ -42,6 +45,11 @@ describe('wrapLine', () => {
     expect(rows.length).toBeGreaterThanOrEqual(2)
     for (const r of rows) expect(r.widthPt).toBeLessThanOrEqual(CONTENT_W_PT)
     expect(rows.flatMap((r) => r.cells).map((c) => c.zh).join('')).toBe('他使我躺卧在青草地上领我在可安歇的水边')
+  })
+  it('prefers a punctuation gap when wrapping', () => {
+    const rows = wrapLine(L('我虽然行过死荫的幽谷，也不怕遭害'), 45, 35, 400)
+    expect(rows.length).toBeGreaterThan(1)
+    expect(rows[0]!.cells.at(-1)!.zh).toBe('谷')
   })
 })
 
