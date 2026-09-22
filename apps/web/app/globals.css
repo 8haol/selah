@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --color-ink: #17161a;
+  --color-ink-soft: #5b5865;
+  --color-line: #e7e4ec;
+  --color-paper: #f7f5f9;
+  --color-card: #ffffff;
+  --color-accent: #6b5bd6;
+  --color-accent-soft: #eeebfb;
+  --radius-lg: 14px;
+}
+
+html, body { background: var(--color-paper); color: var(--color-ink); }
