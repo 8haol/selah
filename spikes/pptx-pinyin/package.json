@@ -1,0 +1,14 @@
+{
+  "name": "spike-pptx-pinyin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "node generate.mjs",
+    "inspect": "node inspect.mjs"
+  },
+  "dependencies": {
+    "jszip": "^3.10.2",
+    "pinyin-pro": "^3.29.4",
+    "pptxgenjs": "^4.0.1"
+  }
+}
