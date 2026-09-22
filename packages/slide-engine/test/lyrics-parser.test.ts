@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLyrics, sectionLabel } from '../src/lyrics-parser.js'
+import { parseHeader, parseLyrics, sectionLabel } from '../src/lyrics-parser.js'
 
 describe('parseLyrics', () => {
   it('splits by bracket headers and numbers verses', () => {
@@ -32,6 +32,18 @@ describe('parseLyrics', () => {
   })
   it('returns [] for empty input', () => {
     expect(parseLyrics('   \n ')).toEqual([])
+  })
+  it('keeps a bare single-letter lyric inside its section', () => {
+    const sections = parseLyrics('[V1]\nI\nam here\n[C]\nx')
+
+    expect(sections[0]!.id).toBe('V1')
+    expect(sections[0]!.lines.map((line) => line.zh)).toEqual(['I', 'am here'])
+  })
+  it('requires brackets, a number, or a colon for single-letter headers', () => {
+    expect(parseHeader('V')).toBeNull()
+    expect(parseHeader('[V]')).toEqual({ type: 'verse', number: null })
+    expect(parseHeader('V1')).toEqual({ type: 'verse', number: 1 })
+    expect(parseHeader('V:')).toEqual({ type: 'verse', number: null })
   })
 })
 

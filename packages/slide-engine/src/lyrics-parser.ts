@@ -25,10 +25,14 @@ export const SECTION_HEADER_PATTERNS = WORDS.map(([re]) => re.source)
 
 /** Parse a header line like "[Verse 1]", "【副歌】", "主歌 2:", "PC". Returns null when the line is lyrics. */
 export function parseHeader(line: string): { type: SectionType; number: number | null } | null {
-  const m = line.trim().match(/^[\[【(（]?\s*([A-Za-z\- ]+?|[一-鿿]+?)\s*(\d+)?\s*[\]】)）]?\s*[:：]?$/)
+  const trimmed = line.trim()
+  const wrapped = /^[\[【(（].*[\]】)）]\s*[:：]?$/.test(trimmed)
+  const hasColon = /[:：]$/.test(trimmed)
+  const m = trimmed.match(/^[\[【(（]?\s*([A-Za-z\- ]+?|[一-鿿]+?)\s*(\d+)?\s*[\]】)）]?\s*[:：]?$/)
   if (!m) return null
   const word = m[1]!.trim()
   const number = m[2] ? Number(m[2]) : null
+  if (/^[A-Za-z]$/.test(word) && !wrapped && number === null && !hasColon) return null
   for (const [re, type] of WORDS) if (re.test(word)) return { type, number }
   return null
 }
