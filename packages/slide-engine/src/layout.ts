@@ -87,9 +87,6 @@ export function wrapLine(line: LyricLine, zhPt: number, pyPt: number, maxWidthPt
     for (let index = 1; index < fitCount; index += 1) {
       if (remaining[index]!.gapAfter) breakAfter = index
     }
-    if (breakAfter < 1) {
-      breakAfter = remaining.findIndex((cell, index) => index >= fitCount && cell.gapAfter)
-    }
     const rowLength = breakAfter >= 1 ? breakAfter + 1 : fitCount
     rows.push(rowOf(remaining.splice(0, rowLength)))
   }

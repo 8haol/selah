@@ -47,9 +47,17 @@ describe('wrapLine', () => {
     expect(rows.flatMap((r) => r.cells).map((c) => c.zh).join('')).toBe('他使我躺卧在青草地上领我在可安歇的水边')
   })
   it('prefers a punctuation gap when wrapping', () => {
-    const rows = wrapLine(L('我虽然行过死荫的幽谷，也不怕遭害'), 45, 35, 400)
+    const rows = wrapLine(L('我虽然行过死荫的幽谷，也不怕遭害'), 45, 35, CONTENT_W_PT)
     expect(rows.length).toBeGreaterThan(1)
     expect(rows[0]!.cells.at(-1)!.zh).toBe('谷')
+  })
+  it('never extends a row past the fitting prefix to reach punctuation', () => {
+    const rows = wrapLine(L('一二三四五六七八九十一二三四五六七八九十，然后'), 45, 35, 300)
+    const expected = '一二三四五六七八九十一二三四五六七八九十然后'
+
+    expect([...expected]).toHaveLength(22)
+    for (const row of rows) expect(row.widthPt).toBeLessThanOrEqual(300)
+    expect(rows.flatMap((row) => row.cells).map((cell) => cell.zh).join('')).toBe(expected)
   })
 })
 
