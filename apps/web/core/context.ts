@@ -12,7 +12,10 @@ async function ensureDefaultOrg() {
 
 /** Auth seam. Phase 1: everyone is an anonymous member of the default org. */
 export async function getCurrentContext(): Promise<{ orgId: string; orgSlug: string; userName: string | null }> {
-  if (!ensured) ensured = ensureDefaultOrg()
+  if (!ensured) ensured = ensureDefaultOrg().catch((e) => {
+    ensured = null
+    throw e
+  })
   await ensured
   return { orgId: DEFAULT_ORG.id, orgSlug: DEFAULT_ORG.slug, userName: null }
 }

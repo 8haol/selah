@@ -31,6 +31,9 @@ async function create(): Promise<Db> {
 }
 
 export function getDb(): Promise<Db> {
-  if (!globalThis.__selahDb) globalThis.__selahDb = create()
+  if (!globalThis.__selahDb) globalThis.__selahDb = create().catch((e) => {
+    globalThis.__selahDb = undefined
+    throw e
+  })
   return globalThis.__selahDb
 }
