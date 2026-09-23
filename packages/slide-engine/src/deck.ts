@@ -12,7 +12,7 @@ export interface BuildDeckInput {
   themeId: string
   /** songId → themeId. Present when the setlist gives songs different themes. */
   themes?: Record<string, string>
-  /** 每页行数. Defaults to whatever the theme carries. */
+  /** 每页最多行数. Defaults to whatever the theme carries. */
   linesPerSlide?: number
   /** 字号：大字 */
   bigText?: boolean
@@ -35,17 +35,71 @@ export function songMeta(song: Song): string {
   return song.artist ?? ''
 }
 
-/** Pack lines into slides so the wrapped row count never exceeds theme.maxLinesPerSlide. */
+/**
+ * Split a section into slides of at most `theme.maxLinesPerSlide` rows (a long
+ * line that wraps counts as its rows). It uses as few slides as filling each
+ * one would, then chooses where they break:
+ *
+ * - never a slide with a single one-row line when the section has more — the
+ *   leftover line that used to sit alone after a full slide;
+ * - between couplets rather than inside one, when that costs nothing else —
+ *   worship lyrics mostly come in pairs of lines;
+ * - otherwise as even as possible.
+ *
+ * At 2 lines a slide some sections cannot avoid a lone line (3 lines, 5 lines),
+ * so there the odd line joins its neighbours as a third row instead.
+ */
 export function paginateLines(lines: LyricLine[], theme: Theme): LyricLine[][] {
-  const pages: LyricLine[][] = []
-  let cur: LyricLine[] = []
-  let rows = 0
-  for (const line of lines) {
-    const r = countRows(line, theme)
-    if (cur.length > 0 && rows + r > theme.maxLinesPerSlide) { pages.push(cur); cur = []; rows = 0 }
-    cur.push(line); rows += r
+  const pages = splitPages(lines, theme.maxLinesPerSlide, theme)
+  const lone = (page: LyricLine[]) => page.length === 1 && countRows(page[0]!, theme) === 1
+  if (theme.maxLinesPerSlide === 2 && lines.length > 1 && pages.some(lone)) {
+    return splitPages(lines, 3, theme)
   }
-  if (cur.length) pages.push(cur)
+  return pages
+}
+
+const LONE_COST = 1e6
+const COUPLET_COST = 10
+
+function splitPages(lines: LyricLine[], maxRows: number, theme: Theme): LyricLine[][] {
+  const n = lines.length
+  if (n === 0) return []
+  const rows = lines.map((line) => countRows(line, theme))
+  const rowsIn = (i: number, j: number) => rows.slice(i, j).reduce((a, b) => a + b, 0)
+
+  // fewest slides: greedy fill is optimal for that
+  let count = 0
+  for (let at = 0, used = 0; at < n; at += 1) {
+    if (at === 0 || used + rows[at]! > maxRows) { count += 1; used = 0 }
+    used += rows[at]!
+  }
+
+  const target = rowsIn(0, n) / count
+  // best[k][j]: cheapest way to set lines [0, j) as k slides; from[k][j] its last break
+  const best = Array.from({ length: count + 1 }, () => new Array<number>(n + 1).fill(Infinity))
+  const from = Array.from({ length: count + 1 }, () => new Array<number>(n + 1).fill(-1))
+  best[0]![0] = 0
+  for (let k = 1; k <= count; k += 1) {
+    for (let j = 1; j <= n; j += 1) {
+      for (let i = j - 1; i >= k - 1; i -= 1) {
+        const r = rowsIn(i, j)
+        // a line too long for a slide still gets one of its own
+        if (r > maxRows && j - i > 1) break
+        const prev = best[k - 1]![i]!
+        if (prev === Infinity) continue
+        const lone = n > 1 && j - i === 1 && r === 1 ? LONE_COST : 0
+        const couplet = j < n && j % 2 === 1 ? COUPLET_COST : 0
+        const cost = prev + lone + couplet + (r - target) ** 2
+        if (cost < best[k]![j]!) { best[k]![j] = cost; from[k]![j] = i }
+      }
+    }
+  }
+  const pages: LyricLine[][] = []
+  for (let k = count, j = n; k > 0; k -= 1) {
+    const i = from[k]![j]!
+    pages.unshift(lines.slice(i, j))
+    j = i
+  }
   return pages
 }
 
