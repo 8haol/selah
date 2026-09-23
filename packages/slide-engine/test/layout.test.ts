@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, lineNeedsBreak, CONTENT_W_PT, MAX_SCALE, MIN_SCALE, rowHeightPt } from '../src/layout.js'
+import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, lineNeedsBreak, CONTENT_W_PT, MAX_SCALE, MIN_SCALE, rowHeightPt, bareRowHeightPt } from '../src/layout.js'
 import { getTheme } from '../src/themes.js'
 import { annotateLine } from '../src/pinyin.js'
 import type { LyricLine } from '../src/types.js'
@@ -106,5 +106,25 @@ describe('a line too long to fit at all', () => {
   it('lineNeedsBreak flags it and leaves a normal line alone', () => {
     expect(lineNeedsBreak(long, night)).toBe(true)
     expect(lineNeedsBreak(L('一二三四五六七八九十'), night)).toBe(false)
+  })
+})
+
+describe('rows with no Chinese', () => {
+  it('leave out the pinyin row, and the rows stack without overlapping', () => {
+    const lay = layoutSlide([L('奇异恩典'), L('Amazing grace how sweet the sound'), L('That saved a wretch like me')], night)
+    const [zh, en1, en2] = lay.rows
+    expect(zh!.heightPt).toBeCloseTo(lay.rowHeightPt, 5)
+    expect(en1!.heightPt).toBeCloseTo(bareRowHeightPt(lay.zhPt), 5)
+    expect(en1!.heightPt).toBeLessThan(lay.rowHeightPt)
+    expect(en1!.topPt).toBeCloseTo(zh!.topPt! + zh!.heightPt! + lay.rowGapPt, 5)
+    expect(en2!.topPt).toBeCloseTo(en1!.topPt! + en1!.heightPt! + lay.rowGapPt, 5)
+    const last = lay.rows.at(-1)!
+    expect(last.topPt! + last.heightPt! - lay.rows[0]!.topPt!).toBeCloseTo(lay.blockHeightPt, 5)
+  })
+  it('an all-English slide is shorter than the same number of Chinese rows', () => {
+    const en = layoutSlide([L('Amazing grace'), L('how sweet')], night)
+    const zh = layoutSlide([L('奇异恩典'), L('何等甘甜')], night)
+    expect(en.rows).toHaveLength(2)
+    expect(en.blockHeightPt / en.scale).toBeLessThan(zh.blockHeightPt / zh.scale)
   })
 })

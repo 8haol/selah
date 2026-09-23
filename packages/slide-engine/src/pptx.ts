@@ -134,7 +134,8 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
 
     const lay = layoutSlide(slide.lines, theme)
     lay.rows.forEach((row, ri) => {
-      const y = lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)
+      const y = row.topPt ?? lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)
+      const h = row.heightPt ?? lay.rowHeightPt
       // a single cell can be wider than the content box; never start off the left edge
       let x = Math.max(CONTENT_X_PT, CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2)
       for (const [cellIndex, cell] of row.cells.entries()) {
@@ -145,7 +146,7 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
         // `shadow` only takes effect on the text box — pptxgenjs drops it from a
         // run's options, which is why exported lyrics used to carry none at all.
         // On the box it covers the pinyin run and the character run together.
-        s.addText(runs, { x: inch(x), y: inch(y), w: inch(cell.widthPt), h: inch(lay.rowHeightPt), margin: 0, align: 'center', valign: 'bottom', fit: 'none', wrap: false, shadow: newShadow() })
+        s.addText(runs, { x: inch(x), y: inch(y), w: inch(cell.widthPt), h: inch(h), margin: 0, align: 'center', valign: 'bottom', fit: 'none', wrap: false, shadow: newShadow() })
         x += cell.widthPt + (cell.gapAfter && cellIndex < row.cells.length - 1 ? 0.5 * lay.zhPt : 0)
       }
     })

@@ -18,8 +18,12 @@ const BASE_ZH_PT = 45
 
 /** `at` is the index in `[...line.zh]` of the cell's first character. */
 export interface Cell { zh: string; py: string; widthPt: number; gapAfter?: boolean; at?: number }
-/** `line` is the index into the slide's lines that the row came from. */
-export interface Row { cells: Cell[]; widthPt: number; line?: number }
+/**
+ * `line` is the index into the slide's lines that the row came from. A laid-out
+ * row also carries its own box: a row with no Chinese (an English lyric) has no
+ * pinyin to make room for, so it is only as tall as its words.
+ */
+export interface Row { cells: Cell[]; widthPt: number; line?: number; topPt?: number; heightPt?: number }
 export interface SlideLayout { scale: number; zhPt: number; pyPt: number; rowHeightPt: number; rowGapPt: number; rows: Row[]; blockHeightPt: number; topPt: number }
 
 const ARIAL_EM: Record<string, number> = {
@@ -148,17 +152,30 @@ export function rowHeightPt(zhPt: number, pyPt: number): number {
   return zhPt * 1.02 + pyPt * 0.98
 }
 
+/** Height of a row with no pinyin above it. */
+export function bareRowHeightPt(zhPt: number): number {
+  return zhPt * 1.02
+}
+
+const hasChinese = (row: Row) => row.cells.some((cell) => [...cell.zh].some(isChinese))
+
 function pyFor(zhPt: number): number { return Math.round(zhPt * PINYIN_RATIO * 2) / 2 }
 
 function attempt(lines: LyricLine[], scale: number, gap: number): SlideLayout {
   const zhPt = BASE_ZH_PT * scale
   const pyPt = pyFor(zhPt)
-  const rows = lines.flatMap((l, line) => wrapLine(l, zhPt, pyPt).map((row) => ({ ...row, line })))
   const rh = rowHeightPt(zhPt, pyPt)
   const rowGapPt = gap * scale
-  const blockHeightPt = rows.length * rh + Math.max(0, rows.length - 1) * rowGapPt
+  const wrapped = lines.flatMap((l, line) => wrapLine(l, zhPt, pyPt).map((row) => ({ ...row, line, heightPt: hasChinese(row) ? rh : bareRowHeightPt(zhPt) })))
+  const blockHeightPt = wrapped.reduce((h, row) => h + row.heightPt, 0) + Math.max(0, wrapped.length - 1) * rowGapPt
   const contentH = CONTENT_BOTTOM_PT - CONTENT_TOP_PT
   const topPt = Math.max(CONTENT_TOP_PT, CONTENT_TOP_PT + (contentH - blockHeightPt) / 2)
+  let y = topPt
+  const rows = wrapped.map((row) => {
+    const placed = { ...row, topPt: y }
+    y += row.heightPt + rowGapPt
+    return placed
+  })
   return { scale, zhPt, pyPt, rowHeightPt: rh, rowGapPt, rows, blockHeightPt, topPt }
 }
 
