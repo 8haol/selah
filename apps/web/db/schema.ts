@@ -53,16 +53,20 @@ export const SETLIST_DEFAULTS: SetlistSettings = {
   linesPerSlide: 2, bigText: false, pinyin: true, titleSlides: true, blankBetween: true,
 }
 
+/** `service` is a Sunday — the newest one is 本周. `draft` is a 制作: any other deck, named freely. */
+export type SetlistKind = 'service' | 'draft'
+
 export const wsSetlists = pgTable('ws_setlists', {
   id: text('id').primaryKey(),
   orgId: text('org_id').notNull().references(() => organizations.id),
+  kind: text('kind').$type<SetlistKind>().notNull().default('service'),
   serviceDate: date('service_date'),
   title: text('title').notNull(),
   settings: jsonb('settings').$type<Partial<SetlistSettings>>().notNull().default({}),
   createdByName: text('created_by_name'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index('ws_setlists_org_idx').on(t.orgId)])
+}, (t) => [index('ws_setlists_org_idx').on(t.orgId), index('ws_setlists_org_kind_idx').on(t.orgId, t.kind)])
 
 export const wsSetlistItems = pgTable('ws_setlist_items', {
   id: text('id').primaryKey(),

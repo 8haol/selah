@@ -18,6 +18,8 @@ import { SlideView, posterSrc, slideLabel, type CharPick } from './SlideView'
 import { PinyinPicker } from './PinyinPicker'
 import { FlowPanel, LyricsPanel, SettingsPanel, ThemePanel } from './SetlistPanels'
 import { typeName } from '../section-name'
+import { SetlistTitle } from './SetlistTitle'
+import { DeleteDraftButton } from './DeleteDraftButton'
 import { AddSongModal, ExportModal, type ExportRow } from './SetlistModals'
 
 type Tab = 'lyrics' | 'flow' | 'theme' | 'set'
@@ -303,8 +305,9 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
           ‹ 工作台
         </Link>
         <span className="h-5 w-px flex-none bg-line-3" />
-        <span className="min-w-0 truncate text-[15.5px] font-semibold">{initial.title}</span>
+        <SetlistTitle id={setlistId} title={initial.title} />
         <span className="hidden flex-none text-[13px] text-ink-5 sm:inline">改动自动保存</span>
+        {initial.kind === 'draft' && <DeleteDraftButton id={setlistId} />}
         <div className="ml-auto flex flex-none items-center gap-3.5">
           <span className="hidden text-[13.5px] text-ink-4 sm:inline">{summary}</span>
           <button

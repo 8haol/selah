@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import type { ReactNode } from 'react'
 import { cx } from './ui'
 
 const NAV = [
@@ -16,7 +17,22 @@ export interface SidebarService {
   count: string
 }
 
-export function Sidebar({ service }: { service: SidebarService | null }) {
+export interface SidebarDraft {
+  href: string
+  label: string
+  count: string
+}
+
+const ROW = 'flex items-center justify-between rounded-[10px] px-3 py-[9px] text-[14.5px] transition-colors hover:bg-line'
+
+interface SidebarProps {
+  service: SidebarService | null
+  drafts: SidebarDraft[]
+  /** 新建制作, rendered by the module so core stays free of its actions. */
+  newDraft: ReactNode
+}
+
+export function Sidebar({ service, drafts, newDraft }: SidebarProps) {
   const pathname = usePathname()
   return (
     <div className="sticky top-0 flex h-screen flex-col gap-[3px] border-r border-line-2 bg-surface-2 px-3.5 py-5">
@@ -47,15 +63,23 @@ export function Sidebar({ service }: { service: SidebarService | null }) {
       {service && (
         <>
           <span className="px-3 pb-1.5 pt-[18px] text-xs text-ink-5">本周</span>
-          <Link
-            href={service.href}
-            className="flex items-center justify-between rounded-[10px] px-3 py-[9px] text-[14.5px] transition-colors hover:bg-line"
-          >
+          <Link href={service.href} className={ROW}>
             <span className="min-w-0 truncate">{service.label}</span>
             <span className="ml-2 flex-none text-xs font-semibold text-accent">{service.count}</span>
           </Link>
         </>
       )}
+
+      <span className="px-3 pb-1.5 pt-[18px] text-xs text-ink-5">最近制作</span>
+      <div className="scroll-thin -mx-1 flex min-h-0 flex-col gap-[3px] overflow-y-auto px-1">
+        {drafts.map((d) => (
+          <Link key={d.href} href={d.href} className={ROW}>
+            <span className="min-w-0 truncate">{d.label}</span>
+            <span className="ml-2 flex-none text-xs text-ink-5">{d.count}</span>
+          </Link>
+        ))}
+        {newDraft}
+      </div>
 
       <p className="mt-auto rounded-xl border border-line-2 bg-surface p-3.5 text-[13px] leading-[1.6] text-ink-4">
         歌库和歌单存在服务器上，整个敬拜队共用，打开就能用。
@@ -65,7 +89,7 @@ export function Sidebar({ service }: { service: SidebarService | null }) {
 }
 
 /** Below the sidebar breakpoint the same destinations ride in a top bar. */
-export function MobileNav({ service }: { service: SidebarService | null }) {
+export function MobileNav({ service, drafts, newDraft }: SidebarProps) {
   const pathname = usePathname()
   return (
     <div className="sticky top-0 z-20 border-b border-line bg-[rgba(255,255,255,.92)] backdrop-blur-[14px]">
@@ -97,6 +121,12 @@ export function MobileNav({ service }: { service: SidebarService | null }) {
             </Link>
           )
         })}
+        {drafts.map((d) => (
+          <Link key={d.href} href={d.href} className="max-w-[10rem] truncate whitespace-nowrap rounded-[10px] px-3 py-2 text-sm text-ink-3">
+            {d.label}
+          </Link>
+        ))}
+        {newDraft}
       </nav>
     </div>
   )

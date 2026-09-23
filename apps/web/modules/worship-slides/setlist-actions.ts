@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { cache } from 'react'
 import { getDb } from '@/db/client'
-import { orgModules, wsDecks, wsSongs, wsSetlists, wsSetlistItems, SETLIST_DEFAULTS, type SetlistSettings } from '@/db/schema'
+import { orgModules, wsDecks, wsSongs, wsSetlists, wsSetlistItems, SETLIST_DEFAULTS, type SetlistKind, type SetlistSettings } from '@/db/schema'
 import { getCurrentContext } from '@/core/context'
 import { rowToSong } from './song-row'
 import { BUILTIN_THEMES, buildDeck, parseFlow, pruneFlow, type SlideDeck, type Song } from '@selah/slide-engine'
@@ -27,6 +27,7 @@ export interface SetlistSongView {
 
 export interface SetlistView {
   id: string
+  kind: SetlistKind
   title: string
   serviceDate: string | null
   settings: SetlistSettings
@@ -113,6 +114,7 @@ async function itemsWithSongs(setlistIds: string[] | SQLWrapper): Promise<ItemWi
 function toView(row: SetlistRow, items: ItemWithSong[], defaultThemeId: string): SetlistView {
   return {
     id: row.id,
+    kind: row.kind,
     title: row.title,
     serviceDate: row.serviceDate,
     settings: { ...SETLIST_DEFAULTS, ...row.settings },
@@ -141,14 +143,15 @@ export async function getSetlist(id: string): Promise<SetlistView | null> {
   return rows[0] ? toView(rows[0], items, defaultThemeId) : null
 }
 
-/** The setlist the sidebar calls 本周 — the most recently touched one. */
+/** The setlist the sidebar calls 本周 — the most recently touched service. Drafts never count. */
 const loadCurrentSetlist = cache(async (): Promise<SetlistView | null> => {
   const { orgId } = await getCurrentContext()
   const db = await getDb()
+  const services = and(eq(wsSetlists.orgId, orgId), eq(wsSetlists.kind, 'service'))
   const latest = () =>
-    db.select({ id: wsSetlists.id }).from(wsSetlists).where(eq(wsSetlists.orgId, orgId)).orderBy(desc(wsSetlists.updatedAt)).limit(1)
+    db.select({ id: wsSetlists.id }).from(wsSetlists).where(services).orderBy(desc(wsSetlists.updatedAt)).limit(1)
   const [rows, items, defaultThemeId] = await Promise.all([
-    db.select().from(wsSetlists).where(eq(wsSetlists.orgId, orgId)).orderBy(desc(wsSetlists.updatedAt)).limit(1),
+    db.select().from(wsSetlists).where(services).orderBy(desc(wsSetlists.updatedAt)).limit(1),
     itemsWithSongs(latest()),
     loadDefaultThemeId(),
   ])
@@ -157,6 +160,34 @@ const loadCurrentSetlist = cache(async (): Promise<SetlistView | null> => {
 
 export async function getCurrentSetlist(): Promise<SetlistView | null> {
   return loadCurrentSetlist()
+}
+
+export interface DraftSummary {
+  id: string
+  title: string
+  count: number
+}
+
+/** 最近制作 in the sidebar: drafts, most recently touched first, with their song counts. */
+const loadDrafts = cache(async (limit: number): Promise<DraftSummary[]> => {
+  const { orgId } = await getCurrentContext()
+  const db = await getDb()
+  return db
+    .select({
+      id: wsSetlists.id,
+      title: wsSetlists.title,
+      count: sql<number>`count(${wsSetlistItems.id})::int`,
+    })
+    .from(wsSetlists)
+    .leftJoin(wsSetlistItems, eq(wsSetlistItems.setlistId, wsSetlists.id))
+    .where(and(eq(wsSetlists.orgId, orgId), eq(wsSetlists.kind, 'draft')))
+    .groupBy(wsSetlists.id)
+    .orderBy(desc(wsSetlists.updatedAt))
+    .limit(limit)
+})
+
+export async function listDrafts(limit = 8): Promise<DraftSummary[]> {
+  return loadDrafts(limit)
 }
 
 /* --------------------------------------------------------------- writing */
@@ -177,6 +208,52 @@ export async function startSetlist(): Promise<ActionResult<{ id: string }>> {
     const date = nextSunday()
     await db.insert(wsSetlists).values({ id, orgId, serviceDate: date, title: await defaultServiceTitle(date) })
     return { ok: true, id }
+  } catch (e) { return failure(e) }
+}
+
+const DRAFT_TITLE = '未命名制作'
+
+/** 新建制作 — a deck that has nothing to do with Sunday. */
+export async function createDraft(): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    const id = `set_${nanoid(10)}`
+    await db.insert(wsSetlists).values({ id, orgId, kind: 'draft', title: DRAFT_TITLE })
+    return { ok: true, id }
+  } catch (e) { return failure(e) }
+}
+
+const titleSchema = z.string().trim().min(1, '名字不能为空').max(60, '名字太长了')
+
+export async function renameSetlist(setlistId: string, title: string): Promise<ActionResult> {
+  try {
+    const name = titleSchema.parse(title)
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    await db
+      .update(wsSetlists)
+      .set({ title: name, updatedAt: new Date() })
+      .where(and(eq(wsSetlists.id, setlistId), eq(wsSetlists.orgId, orgId)))
+    return { ok: true }
+  } catch (e) { return failure(e) }
+}
+
+/** Only drafts can go. Decks it exported stay under 最近的敬拜, just unlinked. */
+export async function deleteDraft(setlistId: string): Promise<ActionResult> {
+  try {
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    const owns = await db
+      .select({ id: wsSetlists.id })
+      .from(wsSetlists)
+      .where(and(eq(wsSetlists.id, setlistId), eq(wsSetlists.orgId, orgId), eq(wsSetlists.kind, 'draft')))
+      .limit(1)
+    if (!owns[0]) return { ok: false, message: '只能删除自己新建的制作' }
+    await db.update(wsDecks).set({ setlistId: null }).where(eq(wsDecks.setlistId, setlistId))
+    await db.delete(wsSetlistItems).where(eq(wsSetlistItems.setlistId, setlistId))
+    await db.delete(wsSetlists).where(eq(wsSetlists.id, setlistId))
+    return { ok: true }
   } catch (e) { return failure(e) }
 }
 
