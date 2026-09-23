@@ -11,13 +11,13 @@ import {
   addSongToSetlist, getSetlist, removeSetlistItem, reorderSetlist, saveSetlistDeck,
   setSetlistTheme, updateSetlistItem, updateSetlistSettings,
 } from '../setlist-actions'
-import { updateSongPinyin, updateSongSections } from '../actions'
+import { updateSongPinyin, updateSongSections, updateSongTitle } from '../actions'
 import { fetchDeckAssets } from '../deck-assets'
 import { InlineError, Segmented, cx, pillClass } from '@/core/ui'
 import { SlideView, posterSrc, slideLabel, type CharPick } from './SlideView'
 import { PinyinPicker } from './PinyinPicker'
 import { FindReplace } from './FindReplace'
-import { carrySpotFixes, replaceCharAt, replaceInSections } from '../replace'
+import { carrySpotFixes, replaceCharAt, replaceInSong, type SongText } from '../replace'
 import { FlowPanel, LyricsPanel, SettingsPanel, ThemePanel } from './SetlistPanels'
 import { typeName } from '../section-name'
 import { deckDisplay } from '../setlist-settings'
@@ -98,9 +98,11 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const here = `${song?.itemId}:${pi}`
   const pick = pickAt?.where === here ? pickAt : null
   const pickZh = pick && slide ? (pick.line < 0 ? slide.title : slide.lines[pick.line]?.zh) : undefined
-  /** Where the picked character lives in the song: the section, and the line's index among `sec.lines` (blank lines included). */
-  const pickSpot = (() => {
-    if (!pick || pick.line < 0 || !slide?.sectionId || !song) return null
+  /** Where the picked character lives in the song: the title, or a section and the line's index among `sec.lines` (blank lines included). */
+  const pickSpot = ((): { sectionId: string; line: number } | 'title' | null => {
+    if (!pick || !slide || !song) return null
+    if (pick.line < 0) return 'title'
+    if (!slide.sectionId) return null
     const sec = song.song.sections.find((s) => s.id === slide.sectionId)
     if (!sec) return null
     // the deck drops blank lines and splits a section across pages: count the lines on this pass's earlier pages
@@ -203,23 +205,26 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   }
 
   /**
-   * Rewrite the lyrics of these songs and save them straight away. Pinyin is
-   * re-read (祢 reads nǐ), and per-spot pinyin fixes follow their edited lines.
+   * Rewrite the title and lyrics of these songs and save them straight away.
+   * Pinyin is re-read (祢 reads nǐ), and per-spot pinyin fixes follow their edited lines.
    */
-  const rewriteLyrics = (songIds: string[], edit: (sections: SongSection[]) => SongSection[]) => {
+  const rewriteSongs = (songIds: string[], edit: (text: SongText) => SongText) => {
     const fresh = new Map<string, SetlistView['songs'][number]['song']>()
     for (const { song: s } of songs) {
       if (!songIds.includes(s.id) || fresh.has(s.id)) continue
-      const edited = edit(s.sections)
-      if (edited.every((sec, i) => sec === s.sections[i])) continue
-      const overrides = carrySpotFixes(s.pinyinOverrides, s.sections, edited)
-      const sections = edited.map((sec) => ({ ...sec, lines: sec.lines.map((l) => ({ ...l, pinyin: annotateLine(l.zh, overrides) })) }))
-      fresh.set(s.id, { ...s, sections, pinyinOverrides: overrides })
-      saveSections(s.id, sections, 0)
-      if (overrides !== s.pinyinOverrides) {
+      const edited = edit({ title: s.title, sections: s.sections })
+      const titleChanged = edited.title !== s.title
+      const lyricsChanged = edited.sections.some((sec, i) => sec !== s.sections[i])
+      if (!titleChanged && !lyricsChanged) continue
+      const overrides = carrySpotFixes(s.pinyinOverrides, s, edited)
+      const sections = edited.sections.map((sec) => ({ ...sec, lines: sec.lines.map((l) => ({ ...l, pinyin: annotateLine(l.zh, overrides) })) }))
+      fresh.set(s.id, { ...s, title: edited.title, sections, pinyinOverrides: overrides })
+      if (lyricsChanged) saveSections(s.id, sections, 0)
+      if (titleChanged || overrides !== s.pinyinOverrides) {
         start(async () => {
-          const r = await updateSongPinyin(s.id, overrides)
-          if (!r.ok) setError(r.message)
+          const r = titleChanged ? await updateSongTitle(s.id, edited.title) : { ok: true as const }
+          const p = r.ok && overrides !== s.pinyinOverrides ? await updateSongPinyin(s.id, overrides) : r
+          if (!p.ok) setError(p.message)
         })
       }
     }
@@ -228,22 +233,25 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
 
   const onFindReplace = (find: string, to: string, everySong: boolean) => {
     if (!song) return
-    rewriteLyrics(everySong ? songs.map((s) => s.song.id) : [song.song.id], (sections) => replaceInSections(sections, find, to))
+    rewriteSongs(everySong ? songs.map((s) => s.song.id) : [song.song.id], (text) => replaceInSong(text, find, to))
   }
 
-  /** The character picked on the preview becomes `to`: here only, or everywhere it appears in the song. */
+  /** The character picked on the preview becomes `to`: here only, or everywhere it appears in the song (title included). */
   const onReplaceChar = (to: string, everywhere: boolean) => {
-    if (!song || !pick || !pickZh) return
+    if (!song || !pick || !pickZh || !pickSpot) return
     const char = [...pickZh][pick.at]
     if (!char) return
-    if (everywhere) { rewriteLyrics([song.song.id], (sections) => replaceInSections(sections, char, to)); return }
-    if (!pickSpot) return
-    rewriteLyrics([song.song.id], (sections) => sections.map((sec) => (
-      sec.id !== pickSpot.sectionId ? sec : {
-        ...sec,
-        lines: sec.lines.map((l, i) => (i === pickSpot.line ? { ...l, zh: replaceCharAt(l.zh, pick.at, to) } : l)),
-      }
-    )))
+    if (everywhere) { rewriteSongs([song.song.id], (text) => replaceInSong(text, char, to)); return }
+    if (pickSpot === 'title') { rewriteSongs([song.song.id], (text) => ({ ...text, title: replaceCharAt(text.title, pick.at, to) })); return }
+    rewriteSongs([song.song.id], (text) => ({
+      ...text,
+      sections: text.sections.map((sec) => (
+        sec.id !== pickSpot.sectionId ? sec : {
+          ...sec,
+          lines: sec.lines.map((l, i) => (i === pickSpot.line ? { ...l, zh: replaceCharAt(l.zh, pick.at, to) } : l)),
+        }
+      )),
+    }))
   }
 
   // ← → turn the preview's pages, unless the keys are busy in a text field or a dialog is open
@@ -479,8 +487,8 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
 
                 {tab === 'lyrics' && (
                   <FindReplace
-                    song={song.song.sections}
-                    all={songs.map((s) => s.song.sections)}
+                    song={song.song}
+                    all={songs.map((s) => s.song)}
                     onReplace={onFindReplace}
                   />
                 )}
@@ -542,8 +550,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
                     slide={slide}
                     theme={slideTheme(deck, slide)}
                     frameClassName=""
-                    // with pinyin hidden only the lyrics can be edited from here: the title has nothing to pick
-                    onPickChar={(p) => { if (settings.pinyin || p.line >= 0) setPickAt({ ...p, where: here }) }}
+                    onPickChar={(p) => setPickAt({ ...p, where: here })}
                     picked={pick}
                   />
                 ) : (
@@ -565,7 +572,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
                   />
                 </div>
               ) : (
-                slide && (slide.kind === 'lyrics' || (settings.pinyin && slide.kind === 'title')) && (
+                slide && (slide.kind === 'lyrics' || slide.kind === 'title') && (
                   <p className="text-[12.5px] text-ink-5">{settings.pinyin ? '字或拼音不对？' : '字不对？'}点投影片上的字就能改 · ← → 翻页</p>
                 )
               )}

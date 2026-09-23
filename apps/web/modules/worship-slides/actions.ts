@@ -151,6 +151,24 @@ export async function updateSongSections(songId: string, input: z.input<typeof s
 const overridesSchema = z.record(z.string().min(1).max(420), z.string().trim().max(12)).refine((o) => Object.keys(o).length <= 500, '改过的拼音太多了')
 
 /** Pin how one character is read in this song — the polyphonic picker. */
+const songTitleSchema = songInputSchema.shape.title
+
+/** Just the title, as corrected from the setlist preview. The search key follows it. */
+export async function updateSongTitle(songId: string, title: string): Promise<ActionResult> {
+  try {
+    const name = songTitleSchema.parse(title)
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    const where = and(eq(wsSongs.id, songId), eq(wsSongs.orgId, orgId), isNull(wsSongs.deletedAt))
+    const row = (await db.select().from(wsSongs).where(where).limit(1))[0]
+    if (!row) throw new UserError('歌曲不存在')
+    await db.update(wsSongs)
+      .set({ title: name, searchKey: buildSearchKey({ title: name, titleEn: row.titleEn, artist: row.artist }), updatedAt: new Date() })
+      .where(where)
+    return { ok: true }
+  } catch (e) { return failure(e) }
+}
+
 export async function updateSongPinyin(songId: string, overrides: z.input<typeof overridesSchema>): Promise<ActionResult> {
   try {
     const pinyinOverrides = overridesSchema.parse(overrides)

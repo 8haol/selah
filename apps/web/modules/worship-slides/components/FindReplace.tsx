@@ -1,17 +1,16 @@
 'use client'
 import { useState } from 'react'
-import type { SongSection } from '@selah/slide-engine'
 import { cx } from '@/core/ui'
-import { countMatches } from '../replace'
+import { countInSong, type SongText } from '../replace'
 
 /**
- * 查找替换 across the lyrics — 你 → 祢 in one go. Folded away until asked for;
+ * 查找替换 across the titles and lyrics — 你 → 祢 in one go. Folded away until asked for;
  * reaches either this song or every song in the setlist.
  */
 export function FindReplace({ song, all, onReplace }: {
-  song: SongSection[]
+  song: SongText
   /** Every song in the setlist, the current one included. */
-  all: SongSection[][]
+  all: SongText[]
   onReplace: (find: string, to: string, everySong: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -20,8 +19,8 @@ export function FindReplace({ song, all, onReplace }: {
   const [everySong, setEverySong] = useState(false)
   const [done, setDone] = useState<string | null>(null)
 
-  const hits = everySong ? all.reduce((n, s) => n + countMatches(s, find), 0) : countMatches(song, find)
-  const songsHit = everySong ? all.filter((s) => countMatches(s, find) > 0).length : 0
+  const hits = everySong ? all.reduce((n, s) => n + countInSong(s, find), 0) : countInSong(song, find)
+  const songsHit = everySong ? all.filter((s) => countInSong(s, find) > 0).length : 0
 
   if (!open) {
     return (

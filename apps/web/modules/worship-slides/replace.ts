@@ -19,6 +19,19 @@ export function replaceInSections(sections: SongSection[], find: string, to: str
   )
 }
 
+/** The words a find/replace reaches: the title and every lyric line. */
+export interface SongText { title: string; sections: SongSection[] }
+
+export function countInSong(song: SongText, find: string): number {
+  if (!find) return 0
+  return song.title.split(find).length - 1 + countMatches(song.sections, find)
+}
+
+export function replaceInSong(song: SongText, find: string, to: string): SongText {
+  if (!find) return song
+  return { title: song.title.split(find).join(to), sections: replaceInSections(song.sections, find, to) }
+}
+
 /** `zh` with the character at `at` (a character index, as SlideView reports it) swapped for `to`. */
 export function replaceCharAt(zh: string, at: number, to: string): string {
   const chars = [...zh]
@@ -33,10 +46,11 @@ export function replaceCharAt(zh: string, at: number, to: string): string {
  * at the same character in the same place; a fix for a character that changed
  * or moved is dropped — it was for a different reading of a different line.
  */
-export function carrySpotFixes(overrides: Record<string, string>, before: SongSection[], after: SongSection[]): Record<string, string> {
+export function carrySpotFixes(overrides: Record<string, string>, before: SongText, after: SongText): Record<string, string> {
   const renamed = new Map<string, string>()
-  before.forEach((s, si) => s.lines.forEach((l, li) => {
-    const zh = after[si]?.lines[li]?.zh
+  if (after.title !== before.title) renamed.set(before.title.trimEnd(), after.title)
+  before.sections.forEach((s, si) => s.lines.forEach((l, li) => {
+    const zh = after.sections[si]?.lines[li]?.zh
     if (zh !== undefined && zh !== l.zh) renamed.set(l.zh.trimEnd(), zh)
   }))
   if (renamed.size === 0) return overrides
