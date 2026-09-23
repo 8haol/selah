@@ -1,4 +1,4 @@
-import type { Theme } from './types.js'
+import type { Theme } from './types'
 
 const base = {
   fonts: { zh: 'SimHei', pinyin: 'Arial', title: 'KaiTi' },

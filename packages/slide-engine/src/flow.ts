@@ -1,4 +1,4 @@
-import type { SectionType, Song } from './types.js'
+import type { SectionType, Song } from './types'
 
 export class FlowError extends Error {
   constructor(message: string, public index: number, public token: string) {

@@ -1,9 +1,9 @@
-import type { LyricLine, Slide, SlideDeck, Song, Theme } from './types.js'
-import { expandFlow } from './flow.js'
-import { annotateSong, annotateLine, joinPinyin } from './pinyin.js'
-import { sectionLabel } from './lyrics-parser.js'
-import { getTheme } from './themes.js'
-import { countRows } from './layout.js'
+import type { LyricLine, Slide, SlideDeck, Song, Theme } from './types'
+import { expandFlow } from './flow'
+import { annotateSong, annotateLine, joinPinyin } from './pinyin'
+import { sectionLabel } from './lyrics-parser'
+import { getTheme } from './themes'
+import { countRows } from './layout'
 
 export interface BuildDeckInput {
   songs: Song[]

@@ -1,4 +1,4 @@
-import type { SectionType, SongSection } from './types.js'
+import type { SectionType, SongSection } from './types'
 
 const TYPE_BY_PREFIX: Record<string, SectionType> = {
   V: 'verse', C: 'chorus', B: 'bridge', PC: 'prechorus', I: 'intro', E: 'ending', T: 'tag',

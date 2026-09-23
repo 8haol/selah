@@ -1,4 +1,4 @@
-import type { Theme } from './types.js'
+import type { Theme } from './types'
 
 function luminance(hex: string): number {
   const h = hex.replace('#', '')

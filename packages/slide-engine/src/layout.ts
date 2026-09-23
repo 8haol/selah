@@ -1,5 +1,5 @@
-import type { LyricLine, Theme } from './types.js'
-import { isChinese } from './pinyin.js'
+import type { LyricLine, Theme } from './types'
+import { isChinese } from './pinyin'
 
 export const SLIDE_W_PT = 720
 export const SLIDE_H_PT = 405

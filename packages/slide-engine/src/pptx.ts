@@ -1,7 +1,7 @@
 import PptxGenJS from 'pptxgenjs'
-import type { SlideDeck, Theme } from './types.js'
-import { getTheme } from './themes.js'
-import { layoutSlide, CONTENT_X_PT, CONTENT_W_PT } from './layout.js'
+import type { SlideDeck, Theme } from './types'
+import { getTheme } from './themes'
+import { layoutSlide, CONTENT_X_PT, CONTENT_W_PT } from './layout'
 
 export interface RenderPptxOptions { backgroundDataUrl: string }
 

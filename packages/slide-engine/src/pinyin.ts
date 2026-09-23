@@ -1,5 +1,5 @@
 import { pinyin, polyphonic } from 'pinyin-pro'
-import type { Song } from './types.js'
+import type { Song } from './types'
 
 const CJK = /\p{Script=Han}/u
 
