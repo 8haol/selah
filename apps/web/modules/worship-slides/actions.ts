@@ -25,7 +25,7 @@ export type SongInput = z.input<typeof songInputSchema>
 const deckInputSchema = z.object({
   songIds: z.array(z.string().min(1)).min(1, '请至少选择一首歌').max(20, '一次最多 20 首歌'),
   flows: z.record(z.string(), z.string().max(400, 'flow 太长了')),
-  themeId: z.string().min(1, '请选择一个主题').max(40, '主题不存在'),
+  themeId: z.string().min(1, '请选择一个主题').max(40, '主题名太长了'),
   title: z.string().trim().max(120, '标题太长了').optional(),
   serviceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD').optional(),
   generatedByName: z.string().trim().max(60, '昵称太长了').optional(),
