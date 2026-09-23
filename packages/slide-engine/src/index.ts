@@ -1,6 +1,6 @@
 export * from './types'
 export { parseLyrics, parseHeader, sectionLabel, sectionIdFor, SECTION_HEADER_PATTERNS } from './lyrics-parser'
-export { parseFlow, expandFlow, describeFlow, FlowError } from './flow'
+export { parseFlow, expandFlow, describeFlow, pruneFlow, FlowError } from './flow'
 export type { FlowStep } from './flow'
 export { annotateLine, annotateSong, polyphonicChoices, isChinese, joinPinyin, stripPinyin } from './pinyin'
 export { contrastRatio, assertThemeContrast } from './contrast'

@@ -99,3 +99,16 @@ export function expandFlow(song: Song, input: string): FlowStep[] {
   })
   return steps
 }
+
+/**
+ * Drop the flow tokens that no longer name anything in the song — a section
+ * deleted in the editor — so one stale token cannot break every later build.
+ */
+export function pruneFlow(song: Song, tokens: string[]): string[] {
+  return tokens.filter((tok) => {
+    if (tok === 'I' || song.sections.some((s) => s.id === tok)) return true
+    const m = tok.match(/^([A-Z]+)$/)
+    const type = m ? PREFIX_TYPE[m[1]!] : undefined
+    return type !== undefined && song.sections.some((s) => s.type === type)
+  })
+}

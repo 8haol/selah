@@ -16,7 +16,7 @@ const AMBIGUOUS = ['单', '行', '乐', '长', '重', '降', '血', '还', '朝'
 /* ------------------------------------------------------------- 歌词 tab */
 
 export function LyricsPanel({
-  sections, theme, currentSectionId, overrides, onEdit, onAddSection, onPinyin,
+  sections, theme, currentSectionId, overrides, onEdit, onAddSection, onRemoveSection, onPinyin,
 }: {
   sections: SongSection[]
   theme: Theme
@@ -24,6 +24,7 @@ export function LyricsPanel({
   overrides: Record<string, string>
   onEdit: (sectionId: string, text: string) => void
   onAddSection: (prefix: string) => void
+  onRemoveSection: (sectionId: string) => void
   onPinyin: (char: string, reading: string) => void
 }) {
   const lines = sections.flatMap((s) => s.lines.map((l) => l.zh))
@@ -41,7 +42,8 @@ export function LyricsPanel({
   return (
     <>
       {sections.map((sec) => {
-        const pages = Math.max(1, paginateLines(sec.lines, theme).length)
+        const filled = sec.lines.filter((l) => l.zh.trim())
+        const pages = paginateLines(filled, theme).length
         return (
           <div
             key={sec.id}
@@ -50,18 +52,30 @@ export function LyricsPanel({
               sec.id === currentSectionId ? 'outline-accent' : 'outline-transparent',
             )}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <span className="text-[13px] font-semibold">{typeName(sec.id)}</span>
-              <span className="text-xs text-ink-5">
-                {sec.lines.length} 行 · {pages} 页
+              <span className="ml-auto text-xs text-ink-5">
+                {filled.length > 0 ? `${filled.length} 行 · ${pages} 页` : '还没有歌词'}
               </span>
+              <button
+                type="button"
+                aria-label={`删除 ${typeName(sec.id)}`}
+                title="删除这一段"
+                onClick={() => {
+                  if (filled.length === 0 || window.confirm(`删除 ${typeName(sec.id)}？这一段的歌词会一起删掉。`)) onRemoveSection(sec.id)
+                }}
+                className="-mr-1 px-1 text-base leading-none text-ink-6 transition-colors hover:text-ink"
+              >
+                ×
+              </button>
             </div>
             <textarea
               value={sec.lines.map((l) => l.zh).join('\n')}
               onChange={(e) => onEdit(sec.id, e.target.value)}
               rows={Math.max(2, sec.lines.length)}
+              placeholder="在这里输入歌词，一行一句"
               aria-label={`${typeName(sec.id)} 歌词`}
-              className="resize-none border-0 bg-transparent p-0 text-[14.5px] leading-[1.85] text-ink-2 outline-0"
+              className="resize-none border-0 bg-transparent p-0 text-[14.5px] leading-[1.85] text-ink-2 outline-0 placeholder:text-ink-6"
             />
           </div>
         )
@@ -90,13 +104,15 @@ export function LyricsPanel({
         </div>
       ))}
 
-      <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
-        <span className="mr-1 text-ink-5">添加段落</span>
-        {ADDABLE.map((t) => (
-          <GhostChip key={t.prefix} onClick={() => onAddSection(t.prefix)}>
-            {t.label}
-          </GhostChip>
-        ))}
+      <div className="flex flex-col gap-2 rounded-xl border border-dashed border-line-strong px-3.5 py-3 text-[13px]">
+        <span className="text-ink-5">歌里还缺一段？新建一段空白歌词，会自动排到顺序最后</span>
+        <div className="flex flex-wrap gap-1.5">
+          {ADDABLE.map((t) => (
+            <GhostChip key={t.prefix} onClick={() => onAddSection(t.prefix)}>
+              + {t.label}
+            </GhostChip>
+          ))}
+        </div>
       </div>
     </>
   )
@@ -129,7 +145,8 @@ export function FlowPanel({
       <div className="flex flex-col gap-1.5">
         {flow.map((tag, i) => {
           const sec = sections.find((s) => s.id === tag)
-          const pages = sec ? Math.max(1, paginateLines(sec.lines, theme).length) : 1
+          const filled = sec?.lines.filter((l) => l.zh.trim()) ?? []
+          const pages = paginateLines(filled, theme).length
           return (
             <div
               key={`${tag}-${i}`}
@@ -150,9 +167,9 @@ export function FlowPanel({
               <span className="font-mono text-[11.5px] text-ink-5">{String(i + 1).padStart(2, '0')}</span>
               <div className="min-w-0">
                 <div className="text-sm font-semibold">{typeName(tag)}</div>
-                <div className="truncate text-[12.5px] text-ink-5">{sec?.lines[0]?.zh ?? '这一段还没有歌词'}</div>
+                <div className="truncate text-[12.5px] text-ink-5">{filled[0]?.zh || '这一段还没有歌词'}</div>
               </div>
-              <span className="text-xs text-ink-5">{pages} 页</span>
+              <span className="text-xs text-ink-5">{pages > 0 ? `${pages} 页` : '—'}</span>
               <button
                 type="button"
                 aria-label={`把第 ${i + 1} 段移出顺序`}

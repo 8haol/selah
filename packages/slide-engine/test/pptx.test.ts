@@ -43,7 +43,7 @@ describe('renderPptx', () => {
     // sizes: auto-fit ≥ minimum (sz is pt*100)
     const sizes = [...xml2.matchAll(/sz="(\d+)"/g)].map((m) => Number(m[1]))
     expect(Math.max(...sizes)).toBeGreaterThanOrEqual(4500)
-    expect(sizes.some((s) => s >= 3500 && s < Math.max(...sizes))).toBe(true)
+    expect(sizes.some((s) => s >= 0.45 * Math.max(...sizes) && s < Math.max(...sizes))).toBe(true)
     expect(xml2).toContain('VERSE 1')
 
     const rels2 = await zip.file('ppt/slides/_rels/slide2.xml.rels')!.async('string')
@@ -61,11 +61,16 @@ describe('renderPptx', () => {
       text: [...chunk.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => m[1]).join(''),
       y: Number(/<a:off [^>]*y="(\d+)"/.exec(chunk)?.[1] ?? NaN),
     }))
-    const title = shapes.find((s) => s.text === '耶和华是我的牧者')
-    const py = shapes.find((s) => s.text.startsWith('yē hé huá'))
-    expect(title, 'title shape').toBeDefined()
-    expect(py, 'title pinyin shape').toBeDefined()
-    expect(py!.y, `pinyin y=${py!.y} should sit above title y=${title!.y}`).toBeLessThan(title!.y)
+    // each title character is its own box with its syllable directly above it
+    const ye = shapes.find((s) => s.text === 'yē耶')
+    const zhe = shapes.find((s) => s.text === 'zhě者')
+    expect(ye, 'title cell 耶').toBeDefined()
+    expect(zhe, 'title cell 者').toBeDefined()
+    const x = (chunk: string) => Number(/<a:off x="(\d+)"/.exec(chunk)?.[1] ?? NaN)
+    const chunks = xml1.split('<p:sp>').slice(1)
+    expect(x(chunks.find((c) => c.includes('>耶<'))!)).toBeLessThan(x(chunks.find((c) => c.includes('>者<'))!))
+    expect(xml1.indexOf('>yē<')).toBeLessThan(xml1.indexOf('>耶<'))
+    expect(xml1).not.toContain('KEY OF')
   })
   it('gives the pinyin the same shadow as the characters it annotates', async () => {
     const deck = buildDeck({ songs: [song], flows: { s1: 'V1' }, themeId: 'night' })

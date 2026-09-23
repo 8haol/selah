@@ -2,7 +2,7 @@ import PptxGenJS from 'pptxgenjs'
 import JSZip from 'jszip'
 import type { SlideDeck, Theme } from './types'
 import { getTheme, slideTheme } from './themes'
-import { layoutSlide, CONTENT_X_PT, CONTENT_W_PT } from './layout'
+import { layoutSlide, layoutTitle, rowHeightPt, CONTENT_X_PT, CONTENT_W_PT, SLIDE_W_PT } from './layout'
 import { dedupeMedia, injectVideoTiming } from './pptx-post'
 
 export interface ThemeAssets {
@@ -100,9 +100,25 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
     if (slide.kind === 'blank') continue
 
     if (slide.kind === 'title') {
-      // pinyin sits above the characters it annotates, exactly as on a lyric line
-      if (slide.titlePinyin) s.addText(slide.titlePinyin, { x: 0.5, y: 1.80, w: SW - 1, h: 0.55, fontFace: theme.fonts.pinyin, fontSize: theme.sizes.titlePinyin, color: hex(theme.colors.pinyin), align: 'center', valign: 'bottom', charSpacing: 2, shadow: newShadow(), margin: 0 })
-      s.addText(slide.title ?? '', { x: 0.5, y: 2.32, w: SW - 1, h: 1.35, fontFace: theme.fonts.title, fontSize: theme.sizes.title, bold: true, color: hex(theme.colors.title), align: 'center', valign: 'middle', charSpacing: 6, shadow: newShadow(), margin: 0 })
+      if (slide.titleLine) {
+        // one box per character, its pinyin centred above it — exactly as on a lyric line
+        const t = layoutTitle(slide.titleLine, theme)
+        const h = rowHeightPt(t.zhPt, t.pyPt)
+        const bottom = 3.62 * 72
+        let x = (SLIDE_W_PT - t.widthPt) / 2
+        for (const [i, cell] of t.cells.entries()) {
+          const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.title, fontSize: t.zhPt, bold: true, color: hex(theme.colors.title) } }
+          const runs = cell.py
+            ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: t.pyPt, color: hex(theme.colors.pinyin), breakLine: true } }, zhRun]
+            : [zhRun]
+          s.addText(runs, { x: inch(x), y: inch(bottom - h), w: inch(cell.widthPt), h: inch(h), margin: 0, align: 'center', valign: 'bottom', fit: 'none', wrap: false, shadow: newShadow() })
+          x += cell.widthPt + (cell.gapAfter && i < t.cells.length - 1 ? 0.3 * t.zhPt : 0)
+        }
+      } else {
+        // decks saved before titleLine existed: pinyin as one centred line above the title
+        if (slide.titlePinyin) s.addText(slide.titlePinyin, { x: 0.5, y: 1.80, w: SW - 1, h: 0.55, fontFace: theme.fonts.pinyin, fontSize: theme.sizes.titlePinyin, color: hex(theme.colors.pinyin), align: 'center', valign: 'bottom', charSpacing: 2, shadow: newShadow(), margin: 0 })
+        s.addText(slide.title ?? '', { x: 0.5, y: 2.32, w: SW - 1, h: 1.35, fontFace: theme.fonts.title, fontSize: theme.sizes.title, bold: true, color: hex(theme.colors.title), align: 'center', valign: 'middle', charSpacing: 6, shadow: newShadow(), margin: 0 })
+      }
       s.addShape(pptx.ShapeType.rect, { x: SW / 2 - 1.15, y: 3.76, w: 2.3, h: 0.035, fill: { color: hex(theme.colors.rule) }, line: { color: hex(theme.colors.rule), width: 0 } })
       if (slide.meta) s.addText(slide.meta.toUpperCase(), { x: 0.5, y: 4.15, w: SW - 1, h: 0.4, fontFace: theme.fonts.pinyin, fontSize: theme.sizes.meta, color: hex(theme.colors.meta), align: 'center', valign: 'middle', charSpacing: 4, margin: 0 })
       continue

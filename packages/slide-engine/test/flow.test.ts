@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseFlow, expandFlow, FlowError } from '../src/flow.js'
+import { parseFlow, expandFlow, pruneFlow, FlowError } from '../src/flow.js'
 import type { Song } from '../src/types.js'
 
 const song: Song = {
@@ -91,5 +91,12 @@ describe('parseFlow repeat limits', () => {
       expect((e as FlowError).message).toBe('flow 太长（最多 200 段）')
     }
     expect(parseFlow(Array.from({ length: 10 }, () => 'Cx20').join(' '))).toHaveLength(200)
+  })
+})
+
+describe('pruneFlow', () => {
+  it('drops tokens for sections the song no longer has, keeps the rest in order', () => {
+    const withoutB = { ...song, sections: song.sections.filter((s) => s.id !== 'B') }
+    expect(pruneFlow(withoutB, ['V1', 'C', 'B', 'C', 'V3', 'I', 'V'])).toEqual(['V1', 'C', 'C', 'I', 'V'])
   })
 })

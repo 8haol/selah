@@ -11,7 +11,8 @@ export const MAX_SCALE = 64 / 45
 /** Floor for the emergency shrink: below this, projected lyrics stop being readable. */
 export const MIN_SCALE = 0.6
 const SCALE_STEP = 0.02
-export const PINYIN_RATIO = 35 / 45
+/** Pinyin at half the character's size: an annotation, not a second lyric line. */
+export const PINYIN_RATIO = 0.5
 const BASE_ZH_PT = 45
 
 export interface Cell { zh: string; py: string; widthPt: number; gapAfter?: boolean }
@@ -66,32 +67,74 @@ function zhWidthPt(zh: string, zhPt: number): number {
   return w
 }
 
+/**
+ * The characters set the rhythm of a row: every cell is one character wide
+ * plus a little air. Only a syllable too long for that (shāng, kuáng) widens
+ * its cell, and then just enough to keep a small space between it and the
+ * next syllable so the pinyin never runs together.
+ */
 export function cellWidthPt(cell: { zh: string; py: string }, zhPt: number, pyPt: number): number {
-  return Math.max(zhWidthPt(cell.zh, zhPt), measureLatinPt(cell.py, pyPt)) + 0.15 * zhPt
+  const py = measureLatinPt(cell.py, pyPt)
+  return Math.max(zhWidthPt(cell.zh, zhPt) + 0.18 * zhPt, py > 0 ? py + 0.25 * pyPt : 0)
 }
 
+/**
+ * Split a line into the fewest rows that fit, then choose where the rows break:
+ * at a comma or space when one is available, otherwise wherever the rows come
+ * out closest to even. "每个伤心失望里你爱我爱到底" breaks 7 / 6, not 6 / 7
+ * after whatever happened to fill the first row.
+ */
 export function wrapLine(line: LyricLine, zhPt: number, pyPt: number, maxWidthPt = CONTENT_W_PT): Row[] {
   const gapPt = 0.5 * zhPt
-  const rowOf = (cells: Cell[]): Row => ({
-    cells,
-    widthPt: cells.reduce((width, cell, index) => width + cell.widthPt + (cell.gapAfter && index < cells.length - 1 ? gapPt : 0), 0),
-  })
-  const rows: Row[] = []
-  const remaining: Cell[] = cellsFor(line).map((cell) => ({ ...cell, widthPt: cellWidthPt(cell, zhPt, pyPt) }))
-  while (remaining.length > 0) {
-    let fitCount = 1
-    while (fitCount < remaining.length && rowOf(remaining.slice(0, fitCount + 1)).widthPt <= maxWidthPt) fitCount += 1
-    if (fitCount === remaining.length) {
-      rows.push(rowOf(remaining.splice(0)))
-      break
+  const cells: Cell[] = cellsFor(line).map((cell) => ({ ...cell, widthPt: cellWidthPt(cell, zhPt, pyPt) }))
+  const rowOf = (from: number, to: number): Row => {
+    const slice = cells.slice(from, to)
+    return {
+      cells: slice,
+      widthPt: slice.reduce((width, cell, index) => width + cell.widthPt + (cell.gapAfter && index < slice.length - 1 ? gapPt : 0), 0),
     }
+  }
+  const n = cells.length
+  if (n === 0) return []
+  if (rowOf(0, n).widthPt <= maxWidthPt) return [rowOf(0, n)]
 
-    let breakAfter = -1
-    for (let index = 1; index < fitCount; index += 1) {
-      if (remaining[index]!.gapAfter) breakAfter = index
+  // fewest rows: greedy fill is optimal for that
+  let rowsNeeded = 0
+  for (let at = 0; at < n; rowsNeeded += 1) {
+    let end = at + 1
+    while (end < n && rowOf(at, end + 1).widthPt <= maxWidthPt) end += 1
+    at = end
+  }
+
+  const total = rowOf(0, n).widthPt
+  const target = total / rowsNeeded
+  // Breaking mid-phrase costs as much as a row 35% of the slide off balance.
+  const midPhrase = (0.35 * maxWidthPt) ** 2
+  // best[r][j]: cheapest way to set cells [0, j) as r rows; from[r][j] its last break
+  const best = Array.from({ length: rowsNeeded + 1 }, () => new Array<number>(n + 1).fill(Infinity))
+  const from = Array.from({ length: rowsNeeded + 1 }, () => new Array<number>(n + 1).fill(-1))
+  best[0]![0] = 0
+  for (let r = 1; r <= rowsNeeded; r += 1) {
+    for (let j = 1; j <= n; j += 1) {
+      for (let i = j - 1; i >= r - 1; i -= 1) {
+        const row = rowOf(i, j)
+        if (row.widthPt > maxWidthPt && j - i > 1) break
+        const prev = best[r - 1]![i]!
+        if (prev === Infinity) continue
+        const breakCost = j < n && !cells[j - 1]!.gapAfter ? midPhrase : 0
+        // Near a tie, the upper row keeps the extra character: a phrase's last
+        // word (里, 的) stays with the words before it.
+        const topHeavy = j < n ? -zhPt * row.widthPt : 0
+        const cost = prev + (target - row.widthPt) ** 2 + breakCost + topHeavy
+        if (cost < best[r]![j]!) { best[r]![j] = cost; from[r]![j] = i }
+      }
     }
-    const rowLength = breakAfter >= 1 ? breakAfter + 1 : fitCount
-    rows.push(rowOf(remaining.splice(0, rowLength)))
+  }
+  const rows: Row[] = []
+  for (let r = rowsNeeded, j = n; r > 0; r -= 1) {
+    const i = from[r]![j]!
+    rows.unshift(rowOf(i, j))
+    j = i
   }
   return rows
 }
@@ -123,7 +166,7 @@ export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
   const floor = t
   const maxRows = Math.min(theme.maxLinesPerSlide, lines.flatMap((line) => wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT))).length)
   for (let scale = ceil; scale >= floor - 1e-9; scale -= SCALE_STEP) {
-    const lay = attempt(lines, Math.max(floor, scale), 6)
+    const lay = attempt(lines, Math.max(floor, scale), 16)
     if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
   }
   const tight = attempt(lines, floor, 0)
@@ -140,6 +183,25 @@ export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
   // iteration (steps >= 1) and returns there. Kept only to satisfy TS's
   // control-flow analysis of the for loop.
   return attempt(lines, MIN_SCALE, 0)
+}
+
+export interface TitleLayout { zhPt: number; pyPt: number; cells: Cell[]; widthPt: number }
+
+/**
+ * The title slide's one row: each character with its own pinyin centred above
+ * it, like a lyric line, shrunk only as far as a long title needs to fit.
+ */
+export function layoutTitle(line: LyricLine, theme: Theme, maxWidthPt = CONTENT_W_PT): TitleLayout {
+  const cells = cellsFor(line)
+  const measure = (zhPt: number, pyPt: number) => {
+    const sized = cells.map((cell) => ({ ...cell, widthPt: cellWidthPt(cell, zhPt, pyPt) }))
+    const widthPt = sized.reduce((w, cell, i) => w + cell.widthPt + (cell.gapAfter && i < sized.length - 1 ? 0.3 * zhPt : 0), 0)
+    return { zhPt, pyPt, cells: sized, widthPt }
+  }
+  const full = measure(theme.sizes.title, theme.sizes.titlePinyin)
+  if (full.widthPt <= maxWidthPt) return full
+  const k = maxWidthPt / full.widthPt
+  return measure(theme.sizes.title * k, theme.sizes.titlePinyin * k)
 }
 
 export function countRows(line: LyricLine, theme: Theme): number {

@@ -6,6 +6,7 @@ import { FieldShell, FilledInput, InlineError, Segmented, Spinner, cx } from '@/
 import { createSong } from '../actions'
 import { addSongToSetlist } from '../setlist-actions'
 import { SHEET_ACCEPT, isSheetFile, prepareSheet } from '../sheet-image'
+import { typeName } from '../section-name'
 import type { RecognizeResult } from '@/app/api/worship/recognize/route'
 
 type Tab = 'sheet' | 'paste' | 'file'
@@ -18,15 +19,7 @@ const TABS = [
 
 const MAX_PAGES = 4
 
-/** The section names the church actually says out loud. */
-const TYPE_LABEL: Record<string, string> = { V: '主歌', C: '副歌', PC: '导歌', B: '桥段', E: '尾声' }
 const CHOICES = ['V1', 'C', 'PC', 'B', 'E']
-
-function typeName(id: string): string {
-  const m = id.match(/^([A-Z]+)(\d*)$/)
-  if (!m) return id
-  return (TYPE_LABEL[m[1]!] ?? id) + (m[2] ? ` ${m[2]}` : '')
-}
 
 interface Block {
   i: number

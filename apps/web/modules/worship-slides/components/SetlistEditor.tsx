@@ -1,8 +1,8 @@
 'use client'
 import Link from 'next/link'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
-  annotateLine, buildDeck, deckFileName, getTheme, parseFlow, renderPptxBytes,
+  annotateLine, buildDeck, deckFileName, getTheme, parseFlow, pruneFlow, renderPptxBytes,
   sectionIdFor, slideTheme, tunedTheme, type Slide, type SongSection,
 } from '@selah/slide-engine'
 import type { SetlistSettings } from '@/db/schema'
@@ -30,10 +30,18 @@ const TABS = [
 
 const SAMPLE_LINES = ['我心满溢　我心满溢']
 
-/** Turn a textarea's contents back into the lines a section stores. */
+/**
+ * Turn a textarea's contents back into the lines a section stores. Kept exactly
+ * as typed — trimming here would swallow the space between two phrases the
+ * moment it is typed, and an Enter at the end of a line. The deck build skips
+ * blank lines and the server trims on save.
+ */
 function linesFrom(text: string, overrides: Record<string, string>) {
-  return text.split('\n').map((zh) => ({ zh: zh.trim(), pinyin: annotateLine(zh.trim(), overrides) }))
+  return text.split('\n').map((zh) => ({ zh, pinyin: annotateLine(zh, overrides) }))
 }
+
+/** Wait this long after the last keystroke before saving lyrics. */
+const SAVE_DELAY_MS = 600
 
 export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const [songs, setSongs] = useState(initial.songs)
@@ -95,11 +103,27 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const patchSong = (i: number, fn: (s: SetlistView['songs'][number]) => SetlistView['songs'][number]) =>
     setSongs((xs) => xs.map((s, k) => (k === i ? fn(s) : s)))
 
-  const saveSections = (songId: string, sections: SongSection[]) =>
-    start(async () => {
-      const r = await updateSongSections(songId, sections.map((s) => ({ id: s.id, lines: s.lines.map((l) => l.zh) })))
-      if (!r.ok) setError(r.message)
-    })
+  // One pending save per song: typing fires onChange per keystroke, and a save
+  // per keystroke races itself — an older request landing last would undo text.
+  const pendingSaves = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => void }>())
+  useEffect(() => {
+    const pending = pendingSaves.current
+    return () => { for (const p of pending.values()) { clearTimeout(p.timer); p.run() } }
+  }, [])
+
+  const saveSections = (songId: string, sections: SongSection[], delay = SAVE_DELAY_MS) => {
+    const run = () => {
+      pendingSaves.current.delete(songId)
+      start(async () => {
+        const r = await updateSongSections(songId, sections.map((s) => ({ id: s.id, lines: s.lines.map((l) => l.zh) })))
+        if (!r.ok) setError(r.message)
+      })
+    }
+    const prev = pendingSaves.current.get(songId)
+    if (prev) clearTimeout(prev.timer)
+    if (delay === 0) { run(); return }
+    pendingSaves.current.set(songId, { timer: setTimeout(run, delay), run })
+  }
 
   const onEditSection = (sectionId: string, text: string) => {
     if (!song) return
@@ -109,15 +133,31 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
     saveSections(song.song.id, sections)
   }
 
+  /** A new, empty section of this kind — numbered after any it already has — placed at the end of the order. */
   const onAddSection = (prefix: string) => {
     if (!song) return
+    const type = ({ V: 'verse', C: 'chorus', PC: 'prechorus', B: 'bridge', E: 'ending' } as const)[prefix as 'V']
     const existing = new Set(song.song.sections.map((s) => s.id))
-    let id = prefix === 'V' ? 'V1' : prefix
-    if (prefix === 'V') { let n = 1; while (existing.has(`V${n}`)) n += 1; id = `V${n}` }
-    else if (existing.has(id)) return
-    const type = { V: 'verse', C: 'chorus', PC: 'prechorus', B: 'bridge', E: 'ending' }[prefix] as SongSection['type']
-    const sections = [...song.song.sections, { id: sectionIdFor(type, Number(id.replace(/\D/g, '') || 1)), type, lines: [{ zh: '', pinyin: [] }] }]
+    let n = 1
+    while (existing.has(sectionIdFor(type, n))) n += 1
+    const id = sectionIdFor(type, n)
+    const sections = [...song.song.sections, { id, type, lines: [{ zh: '', pinyin: [] }] }]
     patchSong(index, (s) => ({ ...s, song: { ...s.song, sections } }))
+    saveFlow(index, [...song.flow, id])
+  }
+
+  const onRemoveSection = (sectionId: string) => {
+    if (!song) return
+    const sections = song.song.sections.filter((s) => s.id !== sectionId)
+    if (!sections.some((s) => s.lines.some((l) => l.zh.trim()))) {
+      setError('一首歌至少要留一段有歌词的段落')
+      return
+    }
+    setError(null)
+    const flow = pruneFlow({ ...song.song, sections }, song.flow)
+    patchSong(index, (s) => ({ ...s, song: { ...s.song, sections } }))
+    saveFlow(index, flow)
+    saveSections(song.song.id, sections, 0)
   }
 
   const onPinyin = (char: string, reading: string) => {
@@ -356,6 +396,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
                     overrides={song.song.pinyinOverrides}
                     onEdit={onEditSection}
                     onAddSection={onAddSection}
+                    onRemoveSection={onRemoveSection}
                     onPinyin={onPinyin}
                   />
                 )}

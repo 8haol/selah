@@ -69,6 +69,8 @@ export interface Slide {
   /** for 'title' slides */
   title?: string
   titlePinyin?: string
+  /** The title with per-character pinyin, so each syllable sits over its own character. */
+  titleLine?: LyricLine
   meta?: string
   lines: LyricLine[]
 }

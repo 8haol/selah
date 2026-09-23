@@ -28,11 +28,11 @@ describe('measureLatinPt / cellWidthPt', () => {
     expect(measureLatinPt('ill', 100)).toBeCloseTo(66.6, 1)
     expect(measureLatinPt('shàng', 35)).toBeCloseTo(measureLatinPt('shang', 35), 5)
   })
-  it('cell width is the wider of glyph and pinyin plus breathing room', () => {
-    const w = cellWidthPt({ zh: '上', py: 'shàng' }, 45, 35)
-    expect(w).toBeGreaterThan(45 + 0.15 * 45)
-    expect(w).toBeCloseTo(measureLatinPt('shang', 35) + 0.15 * 45, 5)
-    expect(cellWidthPt({ zh: '一', py: 'yī' }, 45, 35)).toBeCloseTo(45 + 0.15 * 45, 5)
+  it('cell width follows the character, widening only for a syllable that clearly outgrows it', () => {
+    expect(cellWidthPt({ zh: '一', py: 'yī' }, 45, 22.5)).toBeCloseTo(45 + 0.18 * 45, 5)
+    expect(cellWidthPt({ zh: '是', py: 'shì' }, 45, 22.5)).toBeCloseTo(45 + 0.18 * 45, 5)
+    const wide = cellWidthPt({ zh: '庄', py: 'zhuāng' }, 45, 35)
+    expect(wide).toBeCloseTo(measureLatinPt('zhuang', 35) + 0.25 * 35, 5)
   })
 })
 
@@ -51,6 +51,14 @@ describe('wrapLine', () => {
     expect(rows.length).toBeGreaterThan(1)
     expect(rows[0]!.cells.at(-1)!.zh).toBe('谷')
   })
+  it('balances the rows instead of filling the first one', () => {
+    const rows = wrapLine(L('每个伤心失望里你爱我爱到底'), 64, 32, 600)
+    expect(rows.map((r) => r.cells.map((c) => c.zh).join(''))).toEqual(['每个伤心失望里', '你爱我爱到底'])
+  })
+  it('breaks at the space between phrases when there is one', () => {
+    const rows = wrapLine(L('每个狂风暴雨里 你同在在那里'), 64, 32, 600)
+    expect(rows.map((r) => r.cells.map((c) => c.zh).join(''))).toEqual(['每个狂风暴雨里', '你同在在那里'])
+  })
   it('never extends a row past the fitting prefix to reach punctuation', () => {
     const rows = wrapLine(L('一二三四五六七八九十一二三四五六七八九十，然后'), 45, 35, 300)
     const expected = '一二三四五六七八九十一二三四五六七八九十然后'
@@ -67,7 +75,7 @@ describe('layoutSlide', () => {
     expect(lay.scale).toBeGreaterThan(1)
     expect(lay.scale).toBeLessThanOrEqual(MAX_SCALE)
     expect(lay.zhPt).toBeCloseTo(45 * lay.scale, 5)
-    expect(lay.pyPt).toBeCloseTo(Math.round(lay.zhPt * (35 / 45) * 2) / 2, 5)
+    expect(lay.pyPt).toBeCloseTo(Math.round(lay.zhPt * 0.5 * 2) / 2, 5)
     expect(lay.rows.length).toBe(2)
   })
   it('never goes below 45/35 and keeps four short rows at scale 1', () => {
@@ -85,10 +93,10 @@ describe('layoutSlide', () => {
 })
 
 describe('a line too long to fit at all', () => {
-  const long = L('一二三四五六七八九十'.repeat(5) + '一二')
+  const long = L('一二三四五六七八九十'.repeat(8) + '一二')
 
   it('shrinks below scale 1, down to MIN_SCALE at worst, until the block fits', () => {
-    expect([...long.zh]).toHaveLength(52)
+    expect([...long.zh]).toHaveLength(82)
     const lay = layoutSlide([long], night)
     expect(lay.scale).toBeLessThan(1)
     expect(lay.scale).toBeGreaterThanOrEqual(MIN_SCALE)

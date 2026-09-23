@@ -24,8 +24,9 @@ export interface BuildDeckInput {
   blankBetweenSongs?: boolean
 }
 
+/** The small line under a title. The key is for the band's charts, not the projector. */
 export function songMeta(song: Song): string {
-  return [song.artist, song.key ? `Key of ${song.key}` : ''].filter(Boolean).join(' · ')
+  return song.artist ?? ''
 }
 
 /** Pack lines into slides so the wrapped row count never exceeds theme.maxLinesPerSlide. */
@@ -67,6 +68,7 @@ export function buildDeck(input: BuildDeckInput): SlideDeck {
       slides.push({
         kind: 'title', themeId, songId: song.id, title: song.title,
         titlePinyin: showPinyin ? joinPinyin(annotateLine(song.title, song.pinyinOverrides)) : '',
+        titleLine: py({ zh: song.title, pinyin: annotateLine(song.title, song.pinyinOverrides) }),
         meta: songMeta(song), lines: [],
       })
     }

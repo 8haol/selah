@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { layoutSlide, CONTENT_X_PT, CONTENT_W_PT, SLIDE_W_PT, SLIDE_H_PT, type Slide, type Theme } from '@selah/slide-engine'
+import { layoutSlide, layoutTitle, CONTENT_X_PT, CONTENT_W_PT, SLIDE_W_PT, SLIDE_H_PT, type Slide, type Theme } from '@selah/slide-engine'
 
 const PX = 1920 / SLIDE_W_PT          // 2.6667 px per pt
 const px = (pt: number) => pt * PX
@@ -37,6 +37,7 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
   }, [])
   const sh = shadow(theme)
   const lay = slide.kind === 'lyrics' ? layoutSlide(slide.lines, theme) : null
+  const title = slide.kind === 'title' && slide.titleLine ? layoutTitle(slide.titleLine, theme) : null
   const video = !isStatic && theme.background.kind === 'video' ? theme.background : null
   return (
     <div ref={ref} className={`relative aspect-video w-full overflow-hidden bg-black ${frameClassName}`}>
@@ -46,24 +47,37 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
         )}
         {slide.kind === 'title' && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            {/* pinyin above the characters it annotates, as on every lyric line */}
-            {slide.titlePinyin && <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.titlePinyin * 0.75), letterSpacing: '.06em', color: theme.colors.pinyin, textShadow: sh, marginBottom: px(8) }}>{slide.titlePinyin}</div>}
-            <div style={{ fontFamily: FONT_TITLE, fontSize: px(theme.sizes.title * 0.75), fontWeight: 700, letterSpacing: '.08em', color: theme.colors.title, textShadow: sh }}>{slide.title}</div>
+            {title ? (
+              // each syllable centred over its own character, as on every lyric line
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                {title.cells.map((cell, ci) => (
+                  <div key={ci} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < title.cells.length - 1 ? px(0.3 * title.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(title.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap', marginBottom: px(4) }}>{cell.py}</span>}
+                    <span style={{ fontFamily: FONT_TITLE, fontSize: px(title.zhPt), lineHeight: 1.1, fontWeight: 700, color: theme.colors.title, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {slide.titlePinyin && <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.titlePinyin), letterSpacing: '.06em', color: theme.colors.pinyin, textShadow: sh, marginBottom: px(8) }}>{slide.titlePinyin}</div>}
+                <div style={{ fontFamily: FONT_TITLE, fontSize: px(theme.sizes.title), fontWeight: 700, letterSpacing: '.08em', color: theme.colors.title, textShadow: sh }}>{slide.title}</div>
+              </>
+            )}
             <div style={{ width: 220, height: 3, borderRadius: 2, background: theme.colors.rule, opacity: 0.9, marginTop: px(16) }} />
-            {slide.meta && <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.meta * 0.75), letterSpacing: '.14em', textTransform: 'uppercase', marginTop: px(20), opacity: 0.85, color: theme.colors.meta }}>{slide.meta}</div>}
+            {slide.meta && <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.meta), letterSpacing: '.14em', textTransform: 'uppercase', marginTop: px(20), opacity: 0.85, color: theme.colors.meta }}>{slide.meta}</div>}
           </div>
         )}
         {slide.kind === 'lyrics' && lay && (
           <>
             {slide.sectionLabel && (
-              <div style={{ position: 'absolute', top: px(27), left: px(36), height: px(26), display: 'flex', alignItems: 'center', fontFamily: FONT_PY, fontSize: px(theme.sizes.badge * 0.75), letterSpacing: '.22em', padding: `0 ${px(8)}px`, border: `1.5px solid ${theme.colors.badge}55`, background: `${theme.colors.badge}1f`, borderRadius: 999, color: theme.colors.badge }}>{slide.sectionLabel}</div>
+              <div style={{ position: 'absolute', top: px(27), left: px(36), height: px(26), display: 'flex', alignItems: 'center', fontFamily: FONT_PY, fontSize: px(theme.sizes.badge), letterSpacing: '.22em', padding: `0 ${px(8)}px`, border: `1.5px solid ${theme.colors.badge}55`, background: `${theme.colors.badge}1f`, borderRadius: 999, color: theme.colors.badge }}>{slide.sectionLabel}</div>
             )}
             {lay.rows.map((row, ri) => (
               <div key={ri} style={{ position: 'absolute', display: 'flex', left: px(CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2), top: px(lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)), height: px(lay.rowHeightPt) }}>
                 {row.cells.map((cell, ci) => (
                   <div key={ci} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < row.cells.length - 1 ? px(0.5 * lay.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center' }}>
-                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt * 0.75), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.py}</span>}
-                    <span style={{ fontFamily: FONT_ZH, fontSize: px(lay.zhPt * 0.75), lineHeight: 1.05, fontWeight: 700, color: theme.colors.zh, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
+                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.py}</span>}
+                    <span style={{ fontFamily: FONT_ZH, fontSize: px(lay.zhPt), lineHeight: 1.05, fontWeight: 700, color: theme.colors.zh, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
                   </div>
                 ))}
               </div>

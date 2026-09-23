@@ -7,7 +7,7 @@ import { getDb } from '@/db/client'
 import { orgModules, wsDecks, wsSongs, wsSetlists, wsSetlistItems, SETLIST_DEFAULTS, type SetlistSettings } from '@/db/schema'
 import { getCurrentContext } from '@/core/context'
 import { rowToSong } from './song-row'
-import { BUILTIN_THEMES, buildDeck, parseFlow, type SlideDeck, type Song } from '@selah/slide-engine'
+import { BUILTIN_THEMES, buildDeck, parseFlow, pruneFlow, type SlideDeck, type Song } from '@selah/slide-engine'
 import type { ActionResult } from './actions'
 
 const MODULE_ID = 'worship-slides'
@@ -110,7 +110,7 @@ async function loadSetlist(setlistId: string, orgId: string, defaultThemeId: str
       return [{
         itemId: i.id,
         song,
-        flow: parseFlow(i.flow || song.defaultFlow || song.sections.map((x) => x.id).join(' ')),
+        flow: pruneFlow(song, parseFlow(i.flow || song.defaultFlow || song.sections.map((x) => x.id).join(' '))),
         themeId: safeTheme(i.themeId, defaultThemeId),
       }]
     }),
