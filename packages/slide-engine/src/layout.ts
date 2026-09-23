@@ -206,7 +206,7 @@ function freeLayout(lines: LyricLine[], theme: Theme): SlideLayout {
   const t = theme.textScale ?? 1
   const ceil = MAX_SCALE * t
   const floor = t
-  const maxRows = Math.min(theme.maxLinesPerSlide, lines.flatMap((line) => wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT))).length)
+  const maxRows = Math.min(theme.maxLinesPerSlide, lines.reduce((n, line) => n + countRows(line, theme), 0))
   for (let scale = ceil; scale >= floor - 1e-9; scale -= SCALE_STEP) {
     const lay = attempt(lines, Math.max(floor, scale), gap)
     if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
@@ -325,9 +325,14 @@ export function layoutTitle(line: LyricLine, theme: Theme, maxWidthPt = CONTENT_
   return measure(theme.sizes.title * k, theme.sizes.titlePinyin * k)
 }
 
+/**
+ * Rows the line takes at the smallest size a slide of this theme is set at —
+ * 45pt, or 大字's larger floor. Counting at 45 under 大字 let a line that
+ * wraps at the real size slip past the row budget.
+ */
 export function countRows(line: LyricLine, theme: Theme): number {
-  void theme
-  return wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT)).length
+  const zhPt = BASE_ZH_PT * (theme.textScale ?? 1)
+  return wrapLine(line, zhPt, pyFor(zhPt)).length
 }
 
 /** True when one lyric line alone wraps past the slide's row budget — the editor nudges the user to break it. */
