@@ -84,5 +84,12 @@ export function parseLyrics(text: string): SongSection[] {
     blankRun = 0
     current.lines.push({ zh: line, pinyin: [] })
   }
-  return sections.filter((s) => s.lines.length > 0)
+  return singleVerseAsV(sections.filter((s) => s.lines.length > 0))
+}
+
+/** A song with only one verse calls it V ("Verse"), not V1 — there is no verse 2 to tell it apart from. */
+export function singleVerseAsV(sections: SongSection[]): SongSection[] {
+  const verses = sections.filter((s) => s.type === 'verse')
+  if (verses.length !== 1 || verses[0]!.id !== 'V1') return sections
+  return sections.map((s) => (s.id === 'V1' ? { ...s, id: 'V' } : s))
 }

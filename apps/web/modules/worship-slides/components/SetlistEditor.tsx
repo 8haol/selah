@@ -137,13 +137,20 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const onAddSection = (prefix: string) => {
     if (!song) return
     const type = ({ V: 'verse', C: 'chorus', PC: 'prechorus', B: 'bridge', E: 'ending' } as const)[prefix as 'V']
-    const existing = new Set(song.song.sections.map((s) => s.id))
+    let current = song.song.sections
+    let flow = song.flow
+    // A lone verse is called V; once a second one arrives they become V1 and V2.
+    if (type === 'verse' && current.some((s) => s.id === 'V')) {
+      current = current.map((s) => (s.id === 'V' ? { ...s, id: 'V1' } : s))
+      flow = flow.map((t) => (t === 'V' ? 'V1' : t))
+    }
+    const existing = new Set(current.map((s) => s.id))
     let n = 1
     while (existing.has(sectionIdFor(type, n))) n += 1
     const id = sectionIdFor(type, n)
-    const sections = [...song.song.sections, { id, type, lines: [{ zh: '', pinyin: [] }] }]
+    const sections = [...current, { id, type, lines: [{ zh: '', pinyin: [] }] }]
     patchSong(index, (s) => ({ ...s, song: { ...s.song, sections } }))
-    saveFlow(index, [...song.flow, id])
+    saveFlow(index, [...flow, id])
   }
 
   const onRemoveSection = (sectionId: string) => {

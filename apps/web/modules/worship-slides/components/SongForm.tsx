@@ -1,29 +1,15 @@
 'use client'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { annotateLine, getTheme, lineNeedsBreak, parseLyrics } from '@selah/slide-engine'
+import { getTheme } from '@selah/slide-engine'
 import type { SongRow } from '@/db/schema'
 import { createSong, updateSong, deleteSong } from '../actions'
-import { Badge, Button, Card, Field, Input, Textarea, Toast } from './ui'
-import { FlowInput } from './FlowInput'
+import { blockIds, blocksFromSong, blocksToLyricsText, blocksToSections, flowIds, type LyricBlock } from '../blocks'
+import { rowToSong } from '../song-row'
+import { Button, Card, Field, Input, Toast } from './ui'
+import { LyricBlocksEditor } from './LyricBlocksEditor'
+import { FlowPanel } from './SetlistPanels'
 import { PinyinEditor } from './PinyinEditor'
-
-function sectionsToText(row: SongRow): string {
-  return row.sections.map((s) => `[${s.id}]\n${s.lines.map((l) => l.zh).join('\n')}`).join('\n\n')
-}
-
-const PLACEHOLDER = `[V1]
-耶和华是我的牧者
-我必不致缺乏
-
-[C]
-他使我的灵魂苏醒
-为自己的名引导我走义路
-
-[V2]
-…
-
-支持 [V1] [C] [B] [PC] [E]，也支持 主歌1 / 副歌 / 桥段；不写标记则按空行分段。`
 
 export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | { mode: 'edit'; song: SongRow }) {
   const router = useRouter()
@@ -33,29 +19,17 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
   const [title, setTitle] = useState(song?.title ?? '')
   const [titleEn, setTitleEn] = useState(song?.titleEn ?? '')
   const [artist, setArtist] = useState(song?.artist ?? '')
-  const [key, setKey] = useState(song?.key ?? '')
-  const [lyricsText, setLyricsText] = useState(song ? sectionsToText(song) : '')
-  const [defaultFlow, setDefaultFlow] = useState(song?.defaultFlow ?? '')
+  const [initial] = useState(() => (song ? blocksFromSong(rowToSong(song)) : { blocks: [], flow: [] }))
+  const [blocks, setBlocks] = useState<LyricBlock[]>(initial.blocks)
+  /** The default singing order, as block keys. */
+  const [flow, setFlow] = useState<string[]>(initial.flow)
   const [overrides, setOverrides] = useState<Record<string, string>>(song?.pinyinOverrides ?? {})
   const [createdByName, setCreatedByName] = useState(song?.createdByName ?? '')
-  const sections = useMemo(() => parseLyrics(lyricsText), [lyricsText])
-
-  // A line that alone wraps past the slide's row budget gets shrunk on the slide;
-  // breaking it by hand reads better, so flag it while the lyrics are being typed.
-  const longLines = useMemo(() => {
-    const theme = getTheme('night')
-    const out = new Map<string, string[]>()
-    for (const section of sections) {
-      const hits = section.lines
-        .filter((line) => lineNeedsBreak({ zh: line.zh, pinyin: annotateLine(line.zh, overrides) }, theme))
-        .map((line) => { const chars = [...line.zh]; return chars.slice(0, 12).join('') + (chars.length > 12 ? '…' : '') })
-      if (hits.length > 0) out.set(section.id, hits)
-    }
-    return out
-  }, [sections, overrides])
+  const sections = useMemo(() => blocksToSections(blocks), [blocks])
+  const liveFlow = flow.filter((k) => flowIds(blocks, [k]).length > 0)
 
   const titleError = touched && !title.trim() ? '请填写歌名。' : null
-  const lyricsError = touched && sections.length === 0 ? '请粘贴歌词，至少要有一个段落。' : null
+  const lyricsError = touched && sections.length === 0 ? '至少要有一段歌词。' : null
   const invalid = !title.trim() || sections.length === 0
 
   const submit = () => {
@@ -63,7 +37,11 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
     if (invalid) return
     setError(null)
     start(async () => {
-      const input = { title, titleEn, artist, key, lyricsText, defaultFlow, pinyinOverrides: overrides, createdByName }
+      const order = flowIds(blocks, liveFlow)
+      const input = {
+        title, titleEn, artist, lyricsText: blocksToLyricsText(blocks),
+        defaultFlow: (order.length ? order : sections.map((x) => x.id)).join(' '), pinyinOverrides: overrides, createdByName,
+      }
       try {
         const result = mode === 'create' ? await createSong(input) : await updateSong(song.id, input)
         if (!result.ok) { setError(result.message); return }
@@ -83,24 +61,19 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="耶和华是我的牧者" aria-invalid={titleError ? true : undefined} />
           </Field>
           <Field label="英文名"><Input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} placeholder="The Lord Is My Shepherd" /></Field>
-          <Field label="作者 / 来源"><Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="赞美之泉" /></Field>
-          <Field label="调性"><Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="D" /></Field>
+          <Field label="作者 / 来源"><Input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="赞美之泉 · 游智婷" /></Field>
         </div>
 
-        <Field label="歌词 *" hint="每个段落前加一行标记，例如 [V1]、[C]、[B]。" error={lyricsError}>
-          <Textarea
-            value={lyricsText}
-            onChange={(e) => setLyricsText(e.target.value)}
-            rows={18}
-            placeholder={PLACEHOLDER}
-            aria-invalid={lyricsError ? true : undefined}
-            className="font-mono text-[15px] leading-8"
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-ink">歌词段落</h2>
+          <LyricBlocksEditor
+            blocks={blocks}
+            onChange={setBlocks}
+            onAdd={(b) => { setBlocks((xs) => [...xs, b]); setFlow((f) => [...f, b.key]) }}
+            onRemove={(key) => { setBlocks((xs) => xs.filter((b) => b.key !== key)); setFlow((f) => f.filter((k) => k !== key)) }}
           />
-        </Field>
-
-        <Field label="默认 flow" hint="生成时可以再改。">
-          <FlowInput value={defaultFlow} onChange={setDefaultFlow} sections={sections} />
-        </Field>
+          {lyricsError && <p className="text-sm text-accent-deep">{lyricsError}</p>}
+        </section>
 
         <Field label="制作人昵称"><Input value={createdByName} onChange={(e) => setCreatedByName(e.target.value)} placeholder="可选" /></Field>
 
@@ -112,7 +85,6 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
           </Button>
           {mode === 'edit' && (
             <>
-              <Button variant="ghost" onClick={() => router.push(`/worship/generate?songs=${song.id}`)}>生成 PPT</Button>
               <Button
                 variant="danger"
                 className="ml-auto"
@@ -137,32 +109,27 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
       </div>
 
       <aside className="space-y-4 lg:sticky lg:top-24">
-        <Card as="section" className="p-4">
-          <h2 className="text-sm font-medium text-ink">识别到的段落</h2>
+        <Card as="section" className="flex flex-col gap-3.5 p-4">
+          <h2 className="text-sm font-medium text-ink">默认演唱顺序</h2>
           {sections.length === 0 ? (
-            <p className="mt-2 text-xs leading-6 text-ink-5">粘贴歌词后这里会显示段落。</p>
+            <p className="text-xs leading-6 text-ink-5">写好歌词段落后，在这里排唱的顺序。</p>
           ) : (
-            <ul className="mt-3 space-y-1.5 text-sm">
-              {sections.map((s) => {
-                const long = longLines.get(s.id)
-                return (
-                  <li key={s.id}>
-                    <div className="flex items-center gap-2">
-                      <Badge tone="accent" mono>{s.id}</Badge>
-                      <span className="ml-auto text-xs text-ink-5"><span className="font-mono">{s.lines.length}</span> 行</span>
-                    </div>
-                    {long && (
-                      <p className="mt-1.5 rounded-sm border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-xs leading-5 text-amber-800">
-                        这行太长，建议手动断句
-                        {long.map((text, i) => (
-                          <span key={`${s.id}-${i}`} className="mt-0.5 block truncate font-mono text-[11px] text-amber-700">{text}</span>
-                        ))}
-                      </p>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+            <FlowPanel
+              flow={flowIds(blocks, liveFlow)}
+              sections={sections}
+              theme={getTheme('night')}
+              currentFlowIndex={undefined}
+              onGo={() => {}}
+              onRemove={(i) => setFlow(liveFlow.filter((_, k) => k !== i))}
+              onMove={(from, to) => {
+                const next = [...liveFlow]
+                const [m] = next.splice(from, 1)
+                next.splice(to, 0, m!)
+                setFlow(next)
+              }}
+              onAdd={(id) => { const k = blocks[blockIds(blocks).indexOf(id)]?.key; if (k) setFlow([...liveFlow, k]) }}
+              onReset={() => setFlow(blocks.map((b) => b.key))}
+            />
           )}
         </Card>
         <Card as="section" className="p-4">

@@ -12,7 +12,7 @@ import { typeName } from '@/modules/worship-slides/section-name'
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: '歌库' }
 
-const COLS = 'grid grid-cols-[minmax(0,1fr)_auto] gap-5 md:grid-cols-[minmax(0,2fr)_60px_minmax(0,1.4fr)_120px]'
+const COLS = 'grid grid-cols-[minmax(0,1fr)_auto] gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_120px]'
 
 export default async function Library({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams
@@ -39,7 +39,6 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       <div className="flex flex-col">
         <div className={`${COLS} border-b border-line-3 px-1 pb-3 text-[12.5px] text-ink-5`}>
           <span>歌名</span>
-          <span className="hidden md:block">调</span>
           <span className="hidden md:block">常用顺序</span>
           <span className="hidden md:block" />
         </div>
@@ -55,10 +54,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                 </Link>
                 <div className="mt-1 truncate text-[13.5px] text-ink-5">
                   {s.artist ?? '—'}
-                  <span className="md:hidden">{s.key ? ` · ${s.key} 调` : ''}</span>
                 </div>
               </div>
-              <span className="hidden font-mono text-[13px] font-medium text-ink-4 md:block">{s.key || '—'}</span>
               <span className="hidden truncate text-[13.5px] text-ink-4 md:block">{flow || '—'}</span>
               <div className="flex justify-end">
                 <AddToServiceButton

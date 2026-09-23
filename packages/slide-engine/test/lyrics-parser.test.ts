@@ -21,7 +21,7 @@ describe('parseLyrics', () => {
   })
   it('appends to the existing section when an explicit header repeats', () => {
     const s = parseLyrics(`[V1]\n\u4e00\n[C]\n\u4e8c\n[V1]\n\u4e09`)
-    expect(s.map((x) => x.id)).toEqual(['V1', 'C'])
+    expect(s.map((x) => x.id)).toEqual(['V', 'C'])
     expect(s[0]!.lines.map((l) => l.zh)).toEqual(['\u4e00', '\u4e09'])
     expect(s[1]!.lines.map((l) => l.zh)).toEqual(['\u4e8c'])
   })
@@ -42,7 +42,7 @@ describe('parseLyrics', () => {
   it('keeps a bare single-letter lyric inside its section', () => {
     const sections = parseLyrics('[V1]\nI\nam here\n[C]\nx')
 
-    expect(sections[0]!.id).toBe('V1')
+    expect(sections[0]!.id).toBe('V')
     expect(sections[0]!.lines.map((line) => line.zh)).toEqual(['I', 'am here'])
   })
   it('requires brackets, a number, or a colon for single-letter headers', () => {
@@ -62,5 +62,12 @@ describe('sectionLabel', () => {
     expect(sectionLabel('B')).toBe('BRIDGE')
     expect(sectionLabel('E')).toBe('ENDING')
     expect(sectionLabel('T')).toBe('TAG')
+  })
+})
+
+describe('a song with one verse', () => {
+  it('names it V, and keeps V1/V2 once there are two', () => {
+    expect(parseLyrics('[Verse]\n一\n[C]\n二').map((x) => x.id)).toEqual(['V', 'C'])
+    expect(parseLyrics('[V1]\n一\n[V2]\n二').map((x) => x.id)).toEqual(['V1', 'V2'])
   })
 })

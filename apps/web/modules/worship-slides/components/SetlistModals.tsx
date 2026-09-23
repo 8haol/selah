@@ -68,7 +68,7 @@ export function AddSongModal({
                 <div className="min-w-0">
                   <div className="truncate text-[15px] font-semibold">{s.title}</div>
                   <div className="mt-[3px] truncate text-[13px] text-ink-5">
-                    {[s.artist, s.key && `${s.key} 调`, s.sections.map((x) => typeName(x.id)).join(' · ')].filter(Boolean).join(' · ')}
+                    {[s.artist, s.sections.map((x) => typeName(x.id)).join(' · ')].filter(Boolean).join(' · ')}
                   </div>
                 </div>
                 <Pill

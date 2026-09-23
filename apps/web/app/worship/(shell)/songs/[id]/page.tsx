@@ -26,8 +26,6 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
         <h1 className="mt-2 text-[32px] font-bold tracking-[-0.02em] text-ink md:text-[40px]">{song.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-5">
           {song.artist && <span>{song.artist}</span>}
-          {song.key && <Badge mono>Key {song.key}</Badge>}
-          {song.defaultFlow && <Badge tone="accent" mono>{song.defaultFlow}</Badge>}
         </div>
       </header>
 

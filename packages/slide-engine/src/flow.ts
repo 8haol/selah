@@ -73,6 +73,19 @@ export function describeFlow(song: Song): string {
   return `可用段落：${song.sections.map((s) => s.id).join(', ')}`
 }
 
+/**
+ * The section a token names exactly — allowing V1 for a song whose only verse
+ * is V (and V for a song that still calls it V1), so flows written before a
+ * song gained or lost its second verse keep working.
+ */
+function exactSection(song: Song, tok: string) {
+  const hit = song.sections.find((s) => s.id === tok)
+  if (hit) return hit
+  const one = tok.match(/^([A-Z]+)1$/)
+  if (one) return song.sections.find((s) => s.id === one[1])
+  return undefined
+}
+
 export function expandFlow(song: Song, input: string): FlowStep[] {
   const tokens = parseFlow(input)
   if (tokens.length === 0) throw new FlowError('flow 不能为空。' + describeFlow(song), 0, '')
@@ -81,7 +94,7 @@ export function expandFlow(song: Song, input: string): FlowStep[] {
   const steps: FlowStep[] = []
   tokens.forEach((tok, index) => {
     if (tok === 'I') { steps.push({ kind: 'blank', label: 'INTRO' }); return }
-    const exact = song.sections.find((s) => s.id === tok)
+    const exact = exactSection(song, tok)
     if (exact) { steps.push({ kind: 'section', sectionId: exact.id }); if (exact.type === 'verse') verseCursor = verses.indexOf(exact) + 1; return }
     const m = tok.match(/^([A-Z]+)(\d*)$/)
     const type = m ? PREFIX_TYPE[m[1]!] : undefined
@@ -106,7 +119,7 @@ export function expandFlow(song: Song, input: string): FlowStep[] {
  */
 export function pruneFlow(song: Song, tokens: string[]): string[] {
   return tokens.filter((tok) => {
-    if (tok === 'I' || song.sections.some((s) => s.id === tok)) return true
+    if (tok === 'I' || exactSection(song, tok)) return true
     const m = tok.match(/^([A-Z]+)$/)
     const type = m ? PREFIX_TYPE[m[1]!] : undefined
     return type !== undefined && song.sections.some((s) => s.type === type)

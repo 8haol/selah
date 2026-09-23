@@ -100,3 +100,13 @@ describe('pruneFlow', () => {
     expect(pruneFlow(withoutB, ['V1', 'C', 'B', 'C', 'V3', 'I', 'V'])).toEqual(['V1', 'C', 'C', 'I', 'V'])
   })
 })
+
+describe('V and V1 name the same lone verse', () => {
+  const lone: Song = { ...song, sections: [{ id: 'V', type: 'verse', lines: [{ zh: '一', pinyin: [] }] }, song.sections[2]!] }
+  it('resolves an old V1 token to V', () => {
+    expect(expandFlow(lone, 'V1 C V1')).toEqual([
+      { kind: 'section', sectionId: 'V' }, { kind: 'section', sectionId: 'C' }, { kind: 'section', sectionId: 'V' },
+    ])
+    expect(pruneFlow(lone, ['V1', 'C', 'V2'])).toEqual(['V1', 'C'])
+  })
+})

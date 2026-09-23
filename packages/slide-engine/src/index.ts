@@ -1,5 +1,5 @@
 export * from './types'
-export { parseLyrics, parseHeader, sectionLabel, sectionIdFor, SECTION_HEADER_PATTERNS } from './lyrics-parser'
+export { parseLyrics, parseHeader, sectionLabel, sectionIdFor, singleVerseAsV, SECTION_HEADER_PATTERNS } from './lyrics-parser'
 export { parseFlow, expandFlow, describeFlow, pruneFlow, FlowError } from './flow'
 export type { FlowStep } from './flow'
 export { annotateLine, annotateSong, polyphonicChoices, isChinese, joinPinyin, stripPinyin } from './pinyin'

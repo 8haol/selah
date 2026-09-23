@@ -8,7 +8,7 @@ import { wsSongs, wsDecks, wsSetlists, wsSetlistItems, type SongRow, type DeckRo
 import { getCurrentContext } from '@/core/context'
 import { buildSearchKey } from './search'
 import { rowToSong } from './song-row'
-import { parseLyrics, parseFlow, expandFlow, buildDeck, FlowError, type Song } from '@selah/slide-engine'
+import { parseLyrics, parseFlow, pruneFlow, expandFlow, buildDeck, FlowError, type Song } from '@selah/slide-engine'
 
 const songInputSchema = z.object({
   title: z.string().trim().min(1, '请填写歌名').max(120, '歌名太长了'),
@@ -138,8 +138,7 @@ export async function updateSongSections(songId: string, input: z.input<typeof s
     if (!row) throw new UserError('歌曲不存在')
 
     // a flow token whose section just disappeared would break every later build
-    const ids = new Set(sections.map((s) => s.id))
-    const defaultFlow = parseFlow(row.defaultFlow || '').filter((t) => ids.has(t)).join(' ')
+    const defaultFlow = pruneFlow({ ...rowToSong(row), sections }, parseFlow(row.defaultFlow || '')).join(' ')
 
     await db.update(wsSongs)
       .set({ sections, defaultFlow: defaultFlow || sections.map((s) => s.id).join(' '), updatedAt: new Date() })

@@ -23,14 +23,13 @@ const requestSchema = z.object({
   files: z.array(z.string().regex(/^data:(image\/(jpeg|png|webp|gif)|application\/pdf);base64,/)).min(1).max(MAX_FILES),
 })
 
-const TAG = /^(V\d+|C\d*|PC\d*|B\d*|E|T)$/
+const TAG = /^(V\d*|C\d*|PC\d*|B\d*|E\d*|T)$/
 
 const resultSchema = z.object({
   title: z.string().describe('歌名，按歌谱上印的写'),
-  artist: z.string().nullable().describe('词曲作者或出处；没有就 null'),
-  key: z.string().nullable().describe('调性，例如 "E"、"G"、"Bb"；简谱写 1=G 就是 "G"'),
+  artist: z.string().nullable().describe('出处和词曲作者，例如 "赞美之泉 · 游智婷"；都没有就 null'),
   sections: z.array(z.object({
-    tag: z.string().describe('V1/V2/… 主歌，C 副歌，PC 导歌，B 桥段，E 尾声'),
+    tag: z.string().describe('V 主歌（多节时 V1/V2/…），C 副歌，PC 导歌，B 桥段，E 尾声'),
     lines: z.array(z.string()).describe('这一段的歌词，每个乐句一行'),
   })),
   flow: z.array(z.string()).describe('按反复记号、1./2. 房子展开后的演唱顺序，用 tag 表示'),
@@ -44,7 +43,7 @@ const PROMPT = `这是一首敬拜诗歌的歌谱（五线谱或简谱，可能�
 - 逐字照抄歌谱上的字：繁体就写繁体，简体就写简体，不改写、不补字、不加标点。
 - 多节歌词：一行旋律下面印了几行字，就是第 1、2、3… 节。每一节都要沿着"同一行"跨过所有谱行读下去——
   第 1 节 = 每个谱行下面第 1 行歌词依次接起来，第 2 节 = 每个谱行下面第 2 行，以此类推。绝不能把不同行的字混在一起。
-  每一节是一个单独的段落：V1、V2、V3…
+  每一节是一个单独的段落：V1、V2、V3…；只有一节主歌就标 V。
 - 读完以后自己检查一遍：每一节的字数应该和旋律的音符数大致相同，几节之间字数也应该差不多。
 
 分行：
@@ -58,8 +57,11 @@ const PROMPT = `这是一首敬拜诗歌的歌谱（五线谱或简谱，可能�
 - 1./2. 房子里只差几个字的，把各自结尾的字放进各自的段落，不要丢字。
 
 其他：
-- title 用歌谱上的歌名；artist 只写词曲作者的名字（例如"John Newton / E. O. Excell"），没有就 null。
-- key 优先看"1=X"，否则看调号和第一个和弦。`
+- title 用歌谱上的歌名。
+- artist：出处（出版的团体或专辑，例如"赞美之泉""约书亚乐团""泥土音乐""小羊诗歌"）在前，词曲作者的名字在后，用" · "隔开，
+  例如"赞美之泉 · 游智婷"。词和曲是不同的人就都写上（"赞美之泉 · 词：张清芳 / 曲：游智婷"可以简化成"赞美之泉 · 张清芳 / 游智婷"）。
+  歌谱上只印了其中一样就只写那一样；都没有就 null。不要写调性、拍号、速度。
+- 不需要调性。`
 
 function friendly(e: unknown): string {
   const text = e instanceof Error ? `${e.message} ${String((e as { responseBody?: unknown }).responseBody ?? '')}` : String(e)
@@ -122,7 +124,6 @@ export async function POST(req: Request) {
     const result: RecognizeResult = {
       title: output.title.trim(),
       artist: output.artist?.trim() || null,
-      key: output.key?.trim() || null,
       sections,
       flow: flow.length ? flow : sections.map((s) => s.tag),
     }
