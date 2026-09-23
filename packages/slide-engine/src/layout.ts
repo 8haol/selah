@@ -131,6 +131,9 @@ export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
     const lay = attempt(lines, scale, 0)
     if (lay.blockHeightPt <= contentH || scale === MIN_SCALE) return lay
   }
+  // Unreachable: the loop always reaches scale === MIN_SCALE on its last
+  // iteration (steps >= 1) and returns there. Kept only to satisfy TS's
+  // control-flow analysis of the for loop.
   return attempt(lines, MIN_SCALE, 0)
 }
 

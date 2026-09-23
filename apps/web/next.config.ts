@@ -6,7 +6,11 @@ const nextConfig: NextConfig = {
   // `next start` from the repo still finds PGlite, because it runs out of node_modules.
   outputFileTracingIncludes: { '/**': ['./drizzle/**'] },
   outputFileTracingExcludes: {
-    '/**': ['./node_modules/@electric-sql/pglite/**', './node_modules/.pnpm/@electric-sql+pglite*/**'],
+    '/**': [
+      './node_modules/@electric-sql/pglite/**',
+      './node_modules/.pnpm/@electric-sql+pglite*/**',
+      '../../node_modules/.pnpm/@electric-sql+pglite*/**',
+    ],
   },
 }
 export default nextConfig

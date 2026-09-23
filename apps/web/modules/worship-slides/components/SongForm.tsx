@@ -64,10 +64,14 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
     setError(null)
     start(async () => {
       const input = { title, titleEn, artist, key, lyricsText, defaultFlow, pinyinOverrides: overrides, createdByName }
-      const result = mode === 'create' ? await createSong(input) : await updateSong(song.id, input)
-      if (!result.ok) { setError(result.message); return }
-      if ('id' in result) router.push(`/worship/songs/${result.id}`)
-      else router.refresh()
+      try {
+        const result = mode === 'create' ? await createSong(input) : await updateSong(song.id, input)
+        if (!result.ok) { setError(result.message); return }
+        if ('id' in result) router.push(`/worship/songs/${result.id}`)
+        else router.refresh()
+      } catch {
+        setError('网络或服务器暂时不可用，请稍后再试')
+      }
     })
   }
 
@@ -115,9 +119,13 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
                 onClick={() => {
                   if (!confirm('确定删除这首歌？30 天内可联系管理员恢复。')) return
                   start(async () => {
-                    const result = await deleteSong(song.id)
-                    if (!result.ok) { setError(result.message); return }
-                    router.push('/worship')
+                    try {
+                      const result = await deleteSong(song.id)
+                      if (!result.ok) { setError(result.message); return }
+                      router.push('/worship')
+                    } catch {
+                      setError('网络或服务器暂时不可用，请稍后再试')
+                    }
                   })
                 }}
               >

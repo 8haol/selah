@@ -57,10 +57,14 @@ export function GeneratePanel({ songs, initialSongIds }: { songs: SongRow[]; ini
     setSaveError(null)
     setSaved(false)
     start(async () => {
-      const result = await saveDeck({ songIds: selected, flows: built.deck!.meta.flows, themeId, generatedByName: name || undefined })
-      if (!result.ok) { setSaveError(result.message); return }
-      setSaved(true)
-      router.push(`/worship/decks/${result.deckId}`)
+      try {
+        const result = await saveDeck({ songIds: selected, flows: built.deck!.meta.flows, themeId, generatedByName: name || undefined })
+        if (!result.ok) { setSaveError(result.message); return }
+        setSaved(true)
+        router.push(`/worship/decks/${result.deckId}`)
+      } catch {
+        setSaveError('网络或服务器暂时不可用，请稍后再试')
+      }
     })
   }
 
