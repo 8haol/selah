@@ -47,8 +47,8 @@ export const BUILTIN_THEMES: Theme[] = [
   },
   {
     id: 'cross-dawn', name: '十架晨光 · Cross at Dawn', description: '晨光中的十字架剪影，温暖而庄重。',
-    background: { kind: 'image', src: '/themes/cross-dawn.jpg', approxColor: '#504545' },
-    colors: { zh: '#FFFFFF', pinyin: '#FFFAF2', title: '#FFFFFF', rule: '#F6C86A', badge: '#FFE7C2', meta: '#E8C9A8' },
+    background: { kind: 'image', src: '/themes/cross-dawn.jpg', approxColor: '#483e43' },
+    colors: { zh: '#FFFFFF', pinyin: '#FFFFFF', title: '#FFFFFF', rule: '#F6C86A', badge: '#FFE7C2', meta: '#E8C9A8' },
     shadow: dark('#000000', 0.6), ...base,
   },
   {
@@ -59,7 +59,7 @@ export const BUILTIN_THEMES: Theme[] = [
   },
   {
     id: 'rays', name: '光束 · Rays', description: '云雾间落下柔和光束，沉静而有层次。',
-    background: { kind: 'image', src: '/themes/rays.jpg', approxColor: '#2b363e' },
+    background: { kind: 'image', src: '/themes/rays.jpg', approxColor: '#2a363f' },
     colors: { zh: '#FFFFFF', pinyin: '#FFE9B0', title: '#FFFFFF', rule: '#E9C877', badge: '#FFF0C8', meta: '#C9C2A8' },
     shadow: dark('#000000', 0.6), ...base,
   },

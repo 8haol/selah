@@ -131,16 +131,16 @@ const themes = [
       let rays = ''
       const endpoints = [[930, 0], [1160, 0], [1640, 0], [1920, 180], [1920, 720], [1760, 1080]]
       for (const [x, y] of endpoints) {
-        rays += `<polygon points="1380,452 ${x - 80},${y} ${x + 80},${y}" fill="#F6C86A" opacity="0.05" filter="url(#blur-lg)"/>`
+        rays += `<polygon points="1560,452 ${x - 80},${y} ${x + 80},${y}" fill="#F6C86A" opacity="0.05" filter="url(#blur-lg)"/>`
       }
       return svg(
         `<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E1730"/><stop offset="0.78" stop-color="#2C2A55"/><stop offset="1" stop-color="#B86A3E"/></linearGradient>`,
         `<rect width="${W}" height="${H}" fill="url(#bg)"/>
-         ${bloom(1380, 560, 520, '#F6C86A', 0.55)}
+         ${bloom(1560, 560, 520, '#F6C86A', 0.55)}
          ${rays}
-         <rect x="1358" y="300" width="44" height="560" fill="#0B0F1F" opacity="0.85" filter="url(#blur-sm)"/>
-         <rect x="1250" y="430" width="260" height="44" fill="#0B0F1F" opacity="0.85" filter="url(#blur-sm)"/>
-         ${scrim(false, 0.40)}${grain(0.05)}${vignette()}`,
+         <rect x="1538" y="300" width="44" height="560" fill="#0B0F1F" opacity="0.85" filter="url(#blur-sm)"/>
+         <rect x="1430" y="430" width="260" height="44" fill="#0B0F1F" opacity="0.85" filter="url(#blur-sm)"/>
+         ${scrim(false, 0.42)}${grain(0.05)}${vignette()}`,
       )
     },
   },
@@ -160,10 +160,10 @@ const themes = [
         `<radialGradient id="bg" cx="50%" cy="44%" r="72%"><stop offset="0" stop-color="#07101F"/><stop offset="1" stop-color="#03060D"/></radialGradient>`,
         `<rect width="${W}" height="${H}" fill="url(#bg)"/>
          ${stars}
-         <rect x="945" y="-160" width="30" height="1260" fill="#FFF4D6" opacity="0.18" filter="url(#blur-lg)"/>
-         <rect x="570" y="371" width="780" height="30" fill="#FFF4D6" opacity="0.18" filter="url(#blur-lg)"/>
-         <rect x="955" y="260" width="10" height="420" fill="#FFF4D6" opacity="0.9"/>
-         <rect x="830" y="381" width="260" height="10" fill="#FFF4D6" opacity="0.9"/>
+         <rect x="1628" y="-136.8" width="24" height="1008" fill="#FFF4D6" opacity="0.18" filter="url(#blur-lg)"/>
+         <rect x="1328" y="288" width="624" height="24" fill="#FFF4D6" opacity="0.18" filter="url(#blur-lg)"/>
+         <rect x="1636" y="199.2" width="8" height="336" fill="#FFF4D6" opacity="0.9"/>
+         <rect x="1536" y="296" width="208" height="8" fill="#FFF4D6" opacity="0.9"/>
          ${scrim(false, 0.30)}${grain(0.05)}`,
       )
     },
@@ -172,15 +172,16 @@ const themes = [
     id: 'rays',
     svg() {
       let rays = ''
-      const opacities = [0.07, 0.09, 0.08, 0.11, 0.09, 0.08, 0.07]
+      const opacities = [0.14, 0.17, 0.155, 0.20, 0.17, 0.155, 0.14]
       for (let i = 0; i < 7; i += 1) {
         const centre = 620 + i * 205
-        const halfWidth = 95 + i * 18
+        const halfWidth = 45 + i * (35 / 6)
         rays += `<polygon points="620,-200 ${centre - halfWidth},1080 ${centre + halfWidth},1080" fill="#FFE9B0" opacity="${opacities[i]}" filter="url(#blur-lg)"/>`
       }
       return svg(
-        `<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111A24"/><stop offset="1" stop-color="#1F3140"/></linearGradient>`,
+        `<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0F1A26"/><stop offset="1" stop-color="#1C3040"/></linearGradient>`,
         `<rect width="${W}" height="${H}" fill="url(#bg)"/>
+         ${bloom(620, -120, 380, '#FFD98A', 0.35)}
          ${rays}
          ${bloom(300, 850, 380, '#5A6E80', 0.35)}
          ${bloom(1500, 950, 460, '#5A6E80', 0.35)}
@@ -194,33 +195,33 @@ const themes = [
       const random = rng(11)
       const fills = ['#E24B4B', '#E8A33C', '#3FA34D', '#3B7DD8', '#8E4BD8', '#F0E68C']
       let glass = ''
-      for (let i = 0; i < 26; i += 1) {
+      for (let i = 0; i < 44; i += 1) {
         const side = i % 4
-        const opacity = (0.16 + random() * 0.08).toFixed(2)
+        const opacity = (0.26 + random() * 0.08).toFixed(2)
         const fill = fills[i % fills.length]
         let points
         if (side === 0) {
           const x = random() * W
-          const width = 150 + random() * 260
-          const depth = 100 + random() * 138
+          const width = 90 + random() * 70
+          const depth = 70 + random() * 150
           points = `${x - width / 2},0 ${x + width / 2},0 ${x + width * 0.35},${depth} ${x - width * 0.4},${depth * 0.75}`
         } else if (side === 1) {
           const y = random() * H
-          const height = 120 + random() * 220
-          const depth = 180 + random() * 242
+          const height = 90 + random() * 70
+          const depth = 110 + random() * 280
           points = `${W},${y - height / 2} ${W},${y + height / 2} ${W - depth},${y + height * 0.35} ${W - depth * 0.75},${y - height * 0.4}`
         } else if (side === 2) {
           const x = random() * W
-          const width = 150 + random() * 260
-          const depth = 100 + random() * 138
+          const width = 90 + random() * 70
+          const depth = 70 + random() * 150
           points = `${x - width / 2},${H} ${x + width / 2},${H} ${x + width * 0.35},${H - depth} ${x - width * 0.4},${H - depth * 0.75}`
         } else {
           const y = random() * H
-          const height = 120 + random() * 220
-          const depth = 180 + random() * 242
+          const height = 90 + random() * 70
+          const depth = 110 + random() * 280
           points = `0,${y - height / 2} 0,${y + height / 2} ${depth},${y + height * 0.35} ${depth * 0.75},${y - height * 0.4}`
         }
-        glass += `<polygon points="${points}" fill="${fill}" opacity="${opacity}" stroke="#000" stroke-opacity="0.25" stroke-width="4" filter="url(#blur-sm)"/>`
+        glass += `<polygon points="${points}" fill="${fill}" opacity="${opacity}" stroke="#000" stroke-opacity="0.45" stroke-width="5" filter="url(#blur-sm)"/>`
       }
       return svg(
         '',
@@ -233,14 +234,20 @@ const themes = [
   {
     id: 'dove',
     svg() {
-      const dovePath = 'M0,40 C40,0 120,-10 160,30 C130,20 100,30 90,60 C140,70 190,60 230,20 C210,80 150,120 80,110 C60,140 20,150 0,130 C30,110 30,80 0,40 Z'
+      const doveShapes = `
+        <ellipse cx="0" cy="0" rx="70" ry="32" transform="rotate(-15)"/>
+        <circle cx="72" cy="-30" r="18"/>
+        <polygon points="88,-32 104,-27 88,-22"/>
+        <ellipse cx="-5" cy="-42" rx="62" ry="20" transform="rotate(-40 -5 -42)"/>
+        <polygon points="-66,-4 -112,-30 -100,12 -66,14"/>
+      `
       return svg(
         `<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E9F1FA"/><stop offset="0.55" stop-color="#CFE0F2"/><stop offset="1" stop-color="#B9CFE8"/></linearGradient>`,
         `<rect width="${W}" height="${H}" fill="url(#bg)"/>
          ${bloom(400, 260, 380, '#FFFFFF', 0.9)}
          ${bloom(1500, 900, 460, '#FFFFFF', 0.9)}
-         <path d="${dovePath}" transform="translate(1500 260) scale(1.6)" fill="#8FB0D8" opacity="0.35" filter="url(#blur-lg)"/>
-         <path d="${dovePath}" transform="translate(1500 260) scale(1.6)" fill="#FFFFFF" opacity="0.95"/>
+         <g transform="translate(1500 260) scale(1.3)" fill="#8FB0D8" opacity="0.35" filter="url(#blur-lg)">${doveShapes}</g>
+         <g transform="translate(1500 260) scale(1.3)" fill="#FFFFFF" opacity="0.95">${doveShapes}</g>
          ${scrim(true, 0.45)}${grain(0.04)}`,
       )
     },
