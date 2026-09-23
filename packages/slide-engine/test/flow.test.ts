@@ -56,3 +56,40 @@ describe('expandFlow', () => {
     expect(() => expandFlow(song, '  ')).toThrowError(FlowError)
   })
 })
+
+describe('parseFlow repeat limits', () => {
+  it('rejects a repeat count outside 1–20', () => {
+    for (const input of ['Cx0', 'Cx21', 'V1 C x0', 'V1 C x21']) {
+      expect(() => parseFlow(input), input).toThrowError(FlowError)
+    }
+    try {
+      parseFlow('Cx0')
+      expect.unreachable('Cx0 must throw')
+    } catch (e) {
+      const err = e as FlowError
+      expect(err.message).toBe('重复次数必须在 1 到 20 之间')
+      expect(err.index).toBe(0)
+      expect(err.token).toBe('CX0')
+    }
+  })
+  it('accepts the 1 and 20 boundaries', () => {
+    expect(parseFlow('Cx1')).toEqual(['C'])
+    expect(parseFlow('Cx20')).toHaveLength(20)
+    expect(parseFlow('C x20')).toHaveLength(20)
+  })
+  it('rejects a repeat token with nothing in front of it', () => {
+    expect(() => parseFlow('x2')).toThrowError(FlowError)
+    expect(() => parseFlow('×2 C')).toThrowError(FlowError)
+  })
+  it('rejects a flow longer than 200 sections', () => {
+    const tooLong = Array.from({ length: 11 }, () => 'Cx20').join(' ')
+    expect(() => parseFlow(tooLong)).toThrowError(FlowError)
+    try {
+      parseFlow(tooLong)
+      expect.unreachable('220 sections must throw')
+    } catch (e) {
+      expect((e as FlowError).message).toBe('flow 太长（最多 200 段）')
+    }
+    expect(parseFlow(Array.from({ length: 10 }, () => 'Cx20').join(' '))).toHaveLength(200)
+  })
+})

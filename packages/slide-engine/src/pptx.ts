@@ -1,8 +1,9 @@
 import PptxGenJS from 'pptxgenjs'
+import JSZip from 'jszip'
 import type { SlideDeck, Theme } from './types'
 import { getTheme } from './themes'
 import { layoutSlide, CONTENT_X_PT, CONTENT_W_PT } from './layout'
-import { postProcessVideoDeck } from './pptx-post'
+import { dedupeMedia, injectVideoTiming } from './pptx-post'
 
 export interface RenderAssets {
   /** JPEG data URL: the image theme's background, or the video theme's poster. */
@@ -75,7 +76,8 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
     const lay = layoutSlide(slide.lines, theme)
     lay.rows.forEach((row, ri) => {
       const y = lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)
-      let x = CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2
+      // a single cell can be wider than the content box; never start off the left edge
+      let x = Math.max(CONTENT_X_PT, CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2)
       for (const [cellIndex, cell] of row.cells.entries()) {
         const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.zh, fontSize: lay.zhPt, bold: true, color: hex(theme.colors.zh), shadow } }
         const runs = cell.py
@@ -90,12 +92,15 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
 }
 
 /**
- * The finished .pptx bytes. Video themes are post-processed so the deck carries
- * one shared copy of the clip and every slide starts and loops it on its own.
+ * The finished .pptx bytes. Every deck is post-processed so it carries one
+ * shared copy of each background image (pptxgenjs stores one per slide), and
+ * video decks additionally get one shared clip plus per-slide autoplay timing.
  */
 export async function renderPptxBytes(deck: SlideDeck, assets: RenderAssets): Promise<Uint8Array> {
   const theme = getTheme(deck.themeId)
   const pptx = await renderPptx(deck, assets)
-  const bytes = (await pptx.write({ outputType: 'uint8array' })) as Uint8Array
-  return theme.background.kind === 'video' ? postProcessVideoDeck(bytes, theme.background.durationMs) : bytes
+  const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'uint8array' })) as Uint8Array)
+  await dedupeMedia(zip)
+  if (theme.background.kind === 'video') await injectVideoTiming(zip, theme.background.durationMs)
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
 }

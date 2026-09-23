@@ -60,7 +60,11 @@ export function parseLyrics(text: string): SongSection[] {
   const open = (type: SectionType, explicit: number | null): SongSection => {
     const n = explicit ?? (counters[type] ?? 0) + 1
     counters[type] = Math.max(counters[type] ?? 0, n)
-    const s: SongSection = { id: sectionIdFor(type, n), type, lines: [] }
+    const id = sectionIdFor(type, n)
+    // A repeated explicit header ("[V1]" twice) means "more of V1", not a second V1.
+    const existing = sections.find((s) => s.id === id)
+    if (existing) return existing
+    const s: SongSection = { id, type, lines: [] }
     sections.push(s)
     return s
   }

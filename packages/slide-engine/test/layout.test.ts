@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, CONTENT_W_PT, MAX_SCALE, rowHeightPt } from '../src/layout.js'
+import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, lineNeedsBreak, CONTENT_W_PT, MAX_SCALE, MIN_SCALE, rowHeightPt } from '../src/layout.js'
 import { getTheme } from '../src/themes.js'
 import { annotateLine } from '../src/pinyin.js'
 import type { LyricLine } from '../src/types.js'
@@ -81,5 +81,22 @@ describe('layoutSlide', () => {
   it('countRows reports wrapped rows at scale 1', () => {
     expect(countRows(L('我必不致缺乏'), night)).toBe(1)
     expect(countRows(L('他使我躺卧在青草地上领我在可安歇的水边'), night)).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('a line too long to fit at all', () => {
+  const long = L('一二三四五六七八九十'.repeat(5) + '一二')
+
+  it('shrinks below scale 1, down to MIN_SCALE at worst, until the block fits', () => {
+    expect([...long.zh]).toHaveLength(52)
+    const lay = layoutSlide([long], night)
+    expect(lay.scale).toBeLessThan(1)
+    expect(lay.scale).toBeGreaterThanOrEqual(MIN_SCALE)
+    expect(lay.blockHeightPt).toBeLessThanOrEqual(345)
+  })
+
+  it('lineNeedsBreak flags it and leaves a normal line alone', () => {
+    expect(lineNeedsBreak(long, night)).toBe(true)
+    expect(lineNeedsBreak(L('一二三四五六七八九十'), night)).toBe(false)
   })
 })

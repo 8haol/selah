@@ -19,6 +19,12 @@ describe('parseLyrics', () => {
     const text = `[Verse]\n一\n[Chorus]\n二\n[Verse]\n三\n[Chorus]\n四`
     expect(parseLyrics(text).map((x) => x.id)).toEqual(['V1', 'C', 'V2', 'C2'])
   })
+  it('appends to the existing section when an explicit header repeats', () => {
+    const s = parseLyrics(`[V1]\n\u4e00\n[C]\n\u4e8c\n[V1]\n\u4e09`)
+    expect(s.map((x) => x.id)).toEqual(['V1', 'C'])
+    expect(s[0]!.lines.map((l) => l.zh)).toEqual(['\u4e00', '\u4e09'])
+    expect(s[1]!.lines.map((l) => l.zh)).toEqual(['\u4e8c'])
+  })
   it('falls back to blank-line blocks as verses when there are no headers', () => {
     const text = `一\n二\n\n三\n四\n\n\n五`
     const s = parseLyrics(text)

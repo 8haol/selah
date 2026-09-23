@@ -16,6 +16,8 @@ const song: Song = {
   ],
 }
 
+const IMAGE_MEDIA_RE = /^ppt\/media\/.+\.(jpe?g|png)$/i
+
 describe('renderPptx', () => {
   it('produces a 16:9 deck with one slide per SlideDeck slide, per-character text boxes, image backgrounds', async () => {
     const deck = buildDeck({ songs: [song], flows: { s1: 'V1 I C' }, themeId: 'night' })
@@ -89,5 +91,39 @@ describe('renderPptx', () => {
     const deck = buildDeck({ songs: [song], flows: {}, themeId: 'night' })
     const name = deckFileName({ ...deck, meta: { ...deck.meta, generatedAt: '2026-09-27T09:00:00.000Z' } }, ['耶和华是我的牧者', '第二首'])
     expect(name).toBe('2026-09-27 耶和华是我的牧者 + 1 首.pptx')
+  })
+})
+
+describe('renderPptxBytes for image themes', () => {
+  it('keeps one shared copy of the background image across every slide', async () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'V1 C V1 C V1 C V1 C' }, themeId: 'night' })
+    expect(deck.slides.length).toBe(9)
+
+    // pptxgenjs writes one private copy of the background per slide before dedupe
+    const raw = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const rawZip = await JSZip.loadAsync((await raw.write({ outputType: 'nodebuffer' })) as Buffer)
+    expect(Object.keys(rawZip.files).filter((n) => IMAGE_MEDIA_RE.test(n)).length).toBeGreaterThan(1)
+
+    const bytes = await renderPptxBytes(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const zip = await JSZip.loadAsync(bytes)
+    const images = Object.keys(zip.files).filter((n) => IMAGE_MEDIA_RE.test(n))
+    expect(images).toHaveLength(1)
+
+    const kept = images[0]!.slice('ppt/media/'.length)
+    for (let n = 1; n <= deck.slides.length; n += 1) {
+      const rels = await zip.file(`ppt/slides/_rels/slide${n}.xml.rels`)!.async('string')
+      expect(rels, `slide${n}`).toContain(`Target="../media/${kept}"`)
+    }
+  })
+
+  it('keeps a row wider than the content box from starting off the left edge', async () => {
+    const wide: Song = { ...song, sections: [{ id: 'V1', type: 'verse', lines: [{ zh: 'Hallelujah'.repeat(24), pinyin: [] }] }] }
+    const deck = buildDeck({ songs: [wide], flows: { s1: 'V1' }, themeId: 'night' })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'nodebuffer' })) as Buffer)
+    const xml = await zip.file('ppt/slides/slide2.xml')!.async('string')
+
+    expect(xml).toContain('Hallelujah')
+    expect(xml).not.toMatch(/<a:off x="-/)
   })
 })

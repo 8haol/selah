@@ -8,6 +8,9 @@ export const CONTENT_W_PT = 648
 export const CONTENT_TOP_PT = 48
 export const CONTENT_BOTTOM_PT = 393
 export const MAX_SCALE = 64 / 45
+/** Floor for the emergency shrink: below this, projected lyrics stop being readable. */
+export const MIN_SCALE = 0.6
+const SCALE_STEP = 0.02
 export const PINYIN_RATIO = 35 / 45
 const BASE_ZH_PT = 45
 
@@ -114,15 +117,29 @@ function attempt(lines: LyricLine[], scale: number, gap: number): SlideLayout {
 export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
   const contentH = CONTENT_BOTTOM_PT - CONTENT_TOP_PT
   const maxRows = Math.min(theme.maxLinesPerSlide, lines.flatMap((line) => wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT))).length)
-  for (let scale = MAX_SCALE; scale >= 1 - 1e-9; scale -= 0.02) {
+  for (let scale = MAX_SCALE; scale >= 1 - 1e-9; scale -= SCALE_STEP) {
     const lay = attempt(lines, Math.max(1, scale), 6)
     if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
   }
   const tight = attempt(lines, 1, 0)
-  return tight
+  if (tight.blockHeightPt <= contentH) return tight
+  // A single line wrapping to more rows than the slide allows: shrink past the
+  // 45pt floor rather than let the block run off the bottom of the slide.
+  const steps = Math.round((1 - MIN_SCALE) / SCALE_STEP)
+  for (let i = 1; i <= steps; i += 1) {
+    const scale = Math.max(MIN_SCALE, Number((1 - i * SCALE_STEP).toFixed(4)))
+    const lay = attempt(lines, scale, 0)
+    if (lay.blockHeightPt <= contentH || scale === MIN_SCALE) return lay
+  }
+  return attempt(lines, MIN_SCALE, 0)
 }
 
 export function countRows(line: LyricLine, theme: Theme): number {
   void theme
   return wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT)).length
+}
+
+/** True when one lyric line alone wraps past the slide's row budget — the editor nudges the user to break it. */
+export function lineNeedsBreak(line: LyricLine, theme: Theme): boolean {
+  return countRows(line, theme) > theme.maxLinesPerSlide
 }

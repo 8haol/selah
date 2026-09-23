@@ -22,28 +22,23 @@ function videoShapeId(slideXml: string): number | null {
 }
 
 /**
- * Make a pptxgenjs-written deck with one `addMedia` call per slide actually
- * usable: pptxgenjs stores a private copy of the mp4 (and of the poster) for
- * every slide, and writes no timing at all, so the file would be ~N× too large
- * and the video would need a click to start.
+ * Collapse the media pptxgenjs duplicates. It stores a private copy of every
+ * `addMedia` mp4 and of every background image, once per slide, so a deck would
+ * otherwise be ~N× larger than it needs to be.
  *
- * 1. Collapse the duplicated media: every slide points at the single kept mp4,
- *    and byte-identical poster images collapse onto their first copy.
- * 2. Give every slide holding a video the PowerPoint timing tree that starts it
- *    automatically, loops it until the slide is left, mutes it and hides it
- *    when stopped.
+ * Every slide ends up pointing at the single kept mp4, and byte-identical
+ * images collapse onto their first copy.
  */
-export async function postProcessVideoDeck(bytes: Uint8Array, durationMs: number): Promise<Uint8Array> {
-  const zip = await JSZip.loadAsync(bytes)
+export async function dedupeMedia(zip: JSZip): Promise<void> {
   const names = Object.keys(zip.files)
+  const rename = new Map<string, string>()
 
-  // 1a. one mp4 for the whole deck
+  // one mp4 for the whole deck
   const videos = names.filter((n) => /^ppt\/media\/.+\.mp4$/i.test(n)).sort()
   const keptVideo = videos[0]
-  const rename = new Map<string, string>()
   if (keptVideo) for (const name of videos.slice(1)) rename.set(name, keptVideo)
 
-  // 1b. one copy of each distinct poster / background image
+  // one copy of each distinct poster / background image
   const firstByContent = new Map<string, string>()
   for (const name of names.filter((n) => MEDIA_IMAGE_RE.test(n)).sort()) {
     const content = await zip.file(name)!.async('base64')
@@ -51,22 +46,27 @@ export async function postProcessVideoDeck(bytes: Uint8Array, durationMs: number
     if (first === undefined) firstByContent.set(content, name)
     else rename.set(name, first)
   }
+  if (rename.size === 0) return
 
-  if (rename.size) {
-    // every .rels under ppt/, not just the slides', so nothing is left pointing at a removed part
-    for (const relsName of names.filter((n) => RELS_RE.test(n))) {
-      const rels = await zip.file(relsName)!.async('string')
-      let next = rels
-      for (const [from, to] of rename) {
-        next = next.split(`Target="../media/${from.slice('ppt/media/'.length)}"`).join(`Target="../media/${to.slice('ppt/media/'.length)}"`)
-      }
-      if (next !== rels) zip.file(relsName, next)
+  // every .rels under ppt/, not just the slides', so nothing is left pointing at a removed part
+  for (const relsName of names.filter((n) => RELS_RE.test(n))) {
+    const rels = await zip.file(relsName)!.async('string')
+    let next = rels
+    for (const [from, to] of rename) {
+      next = next.split(`Target="../media/${from.slice('ppt/media/'.length)}"`).join(`Target="../media/${to.slice('ppt/media/'.length)}"`)
     }
-    for (const name of rename.keys()) zip.remove(name)
+    if (next !== rels) zip.file(relsName, next)
   }
+  for (const name of rename.keys()) zip.remove(name)
+}
 
-  // 2. autoplay + loop timing on every slide that embeds the video
-  for (const slideName of names.filter((n) => SLIDE_RE.test(n))) {
+/**
+ * Give every slide holding a video the PowerPoint timing tree that starts it
+ * automatically, loops it until the slide is left, mutes it and hides it when
+ * stopped. pptxgenjs writes no timing at all, so the clip would need a click.
+ */
+export async function injectVideoTiming(zip: JSZip, durationMs: number): Promise<void> {
+  for (const slideName of Object.keys(zip.files).filter((n) => SLIDE_RE.test(n))) {
     const xml = await zip.file(slideName)!.async('string')
     const spid = videoShapeId(xml)
     if (spid === null) continue
@@ -74,6 +74,4 @@ export async function postProcessVideoDeck(bytes: Uint8Array, durationMs: number
     const stripped = xml.replace(/<p:timing>[\s\S]*?<\/p:timing>/, '')
     zip.file(slideName, stripped.replace('</p:sld>', `${timing}</p:sld>`))
   }
-
-  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
 }
