@@ -25,7 +25,7 @@ const HERO_LINES = ['我心满溢　我心满溢', '对祢的爱和思念无止�
 
 export default function Home() {
   // the live 流光 loop, not a still: it is the first thing a visitor sees
-  const heroTheme = getTheme('flow-deep')
+  const heroTheme = getTheme('flow-dawn')
   const heroSlide: Slide = { kind: 'lyrics', lines: HERO_LINES.map((zh) => ({ zh, pinyin: annotateLine(zh, {}) })) }
 
   return (
