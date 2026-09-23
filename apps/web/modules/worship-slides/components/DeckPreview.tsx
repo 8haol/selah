@@ -21,7 +21,7 @@ export function posterSrc(theme: Theme): string {
 }
 
 /** `static` keeps thumbnails on the poster — dozens of playing videos at once is not worth it. */
-export function SlideView({ slide, theme, static: isStatic = false }: { slide: Slide; theme: Theme; static?: boolean }) {
+export function SlideView({ slide, theme, static: isStatic = false, frameClassName = 'rounded-lg' }: { slide: Slide; theme: Theme; static?: boolean; frameClassName?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.2)
   useEffect(() => {
@@ -33,7 +33,7 @@ export function SlideView({ slide, theme, static: isStatic = false }: { slide: S
   const lay = slide.kind === 'lyrics' ? layoutSlide(slide.lines, theme) : null
   const video = !isStatic && theme.background.kind === 'video' ? theme.background : null
   return (
-    <div ref={ref} className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+    <div ref={ref} className={`relative aspect-video w-full overflow-hidden bg-black ${frameClassName}`}>
       <div style={{ width: 1920, height: px(SLIDE_H_PT), transform: `scale(${scale})`, transformOrigin: '0 0', position: 'absolute', inset: 0, backgroundImage: `url(${posterSrc(theme)})`, backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: FONT_ZH }}>
         {video && (
           <video src={video.src} poster={video.poster} autoPlay loop muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -68,27 +68,70 @@ export function SlideView({ slide, theme, static: isStatic = false }: { slide: S
   )
 }
 
+function slideLabel(slide: Slide): string {
+  if (slide.kind === 'title') return '标题'
+  if (slide.kind === 'blank') return '空白'
+  return slide.sectionLabel ?? '歌词'
+}
+
 export function DeckPreview({ deck }: { deck: SlideDeck }) {
   const theme = getTheme(deck.themeId)
-  const [i, setI] = useState(0)
+  const [wanted, setWanted] = useState(0)
+  const stripRef = useRef<HTMLDivElement>(null)
   const n = deck.slides.length
-  useEffect(() => { setI((x) => Math.min(x, Math.max(0, n - 1))) }, [n])
+  // clamp during render — an effect here would cascade a second render
+  const i = Math.min(wanted, Math.max(0, n - 1))
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setI((x) => Math.min(n - 1, x + 1))
-      if (e.key === 'ArrowLeft') setI((x) => Math.max(0, x - 1))
+      if (e.key === 'ArrowRight') setWanted((x) => Math.min(n - 1, x + 1))
+      if (e.key === 'ArrowLeft') setWanted((x) => Math.max(0, x - 1))
     }
-    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [n])
-  if (n === 0) return <div className="aspect-video w-full rounded-lg border border-dashed border-line" />
+
+  if (n === 0) {
+    return (
+      <div className="grid aspect-video w-full place-items-center rounded-lg border border-dashed border-line text-sm text-ink-soft">
+        还没有可预览的幻灯片
+      </div>
+    )
+  }
+
   const cur = deck.slides[i]!
   return (
     <div className="space-y-3">
       <SlideView slide={cur} theme={theme} />
-      <div className="flex items-center justify-between text-xs text-ink-soft"><span>{i + 1} / {n} · {cur.kind === 'title' ? '标题' : cur.kind === 'blank' ? '空白' : cur.sectionLabel}</span><span>← → 翻页</span></div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center justify-between text-xs text-ink-soft">
+        <span>
+          <span className="font-mono">{i + 1}</span> / <span className="font-mono">{n}</span> · {slideLabel(cur)}
+        </span>
+        <span aria-hidden="true">← → 翻页</span>
+      </div>
+      <div
+        ref={stripRef}
+        role="group"
+        aria-label="幻灯片缩略图"
+        className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+          const next = Math.max(0, Math.min(n - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))
+          setWanted(next)
+          stripRef.current?.querySelectorAll('button')[next]?.focus()
+        }}
+      >
         {deck.slides.map((s, k) => (
-          <button key={k} onClick={() => setI(k)} className={`w-32 shrink-0 rounded-md ring-2 ${k === i ? 'ring-accent' : 'ring-transparent'}`}><SlideView slide={s} theme={theme} static /></button>
+          <button
+            key={k}
+            type="button"
+            onClick={() => setWanted(k)}
+            aria-label={`第 ${k + 1} 页 · ${slideLabel(s)}`}
+            aria-current={k === i || undefined}
+            className={`w-28 shrink-0 overflow-hidden rounded-md ring-2 transition sm:w-32 ${k === i ? 'ring-accent' : 'ring-transparent hover:ring-line'}`}
+          >
+            <SlideView slide={s} theme={theme} static frameClassName="rounded-[4px]" />
+          </button>
         ))}
       </div>
     </div>

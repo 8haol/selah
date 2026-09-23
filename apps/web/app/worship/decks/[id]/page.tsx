@@ -1,11 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getDeck } from '@/modules/worship-slides/actions'
 import { DeckPreview } from '@/modules/worship-slides/components/DeckPreview'
 import { DownloadPptxButton } from '@/modules/worship-slides/components/DownloadPptxButton'
 import { getTheme } from '@selah/slide-engine'
+import { Badge, Card, buttonClass } from '@/modules/worship-slides/components/ui'
 
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const row = await getDeck(id)
+  return { title: row?.titles.length ? row.titles.join(' · ') : '生成记录' }
+}
 
 export default async function DeckPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -13,19 +21,40 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
   if (!row) notFound()
   const theme = getTheme(row.themeId)
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{row.titles.join(' · ')}</h1>
-          <p className="mt-1 text-sm text-ink-soft">{theme.name} · {row.deck.slides.length} 页 · {row.createdAt.toLocaleString('zh-CN')}{row.generatedByName ? ` · ${row.generatedByName}` : ''}</p>
-          <p className="mt-1 text-xs text-ink-soft">flow：{Object.entries(row.flows).map(([sid, f]) => `${row.titles[row.deck.meta.songIds.indexOf(sid)] ?? sid}：${f}`).join('　')}</p>
+    <div className="space-y-10">
+      <header className="flex flex-wrap items-end gap-x-6 gap-y-4">
+        <div className="min-w-0">
+          <Link href="/worship" className="inline-flex rounded-sm text-xs text-ink-soft transition-colors hover:text-ink">← 返回歌库</Link>
+          <h1 className="mt-2 font-serif text-[28px] font-medium leading-tight text-ink">{row.titles.join(' · ')}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge>{theme.name}</Badge>
+            <Badge mono>{row.deck.slides.length} 页</Badge>
+            <Badge>{row.createdAt.toLocaleString('zh-CN')}</Badge>
+            {row.generatedByName && <Badge>{row.generatedByName}</Badge>}
+          </div>
         </div>
-        <div className="ml-auto flex gap-3">
-          <Link href={`/worship/generate?songs=${row.deck.meta.songIds.join(',')}`} className="inline-flex h-10 items-center rounded-lg border border-line bg-card px-4 text-sm hover:bg-paper">用这些歌重新生成</Link>
+        <div className="ml-auto flex flex-wrap items-start gap-3">
+          <Link href={`/worship/generate?songs=${row.deck.meta.songIds.join(',')}`} className={buttonClass({ variant: 'ghost' })}>
+            重新生成
+          </Link>
           <DownloadPptxButton deck={row.deck} titles={row.titles} />
         </div>
+      </header>
+
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-12">
+        <DeckPreview deck={row.deck} />
+        <Card as="section" className="p-4">
+          <h2 className="font-serif text-sm font-medium text-ink">每首歌的 flow</h2>
+          <ul className="mt-3 space-y-3 text-sm">
+            {row.deck.meta.songIds.map((sid, i) => (
+              <li key={sid}>
+                <div className="truncate text-ink">{row.titles[i] ?? sid}</div>
+                <div className="mt-1"><Badge tone="accent" mono>{row.flows[sid] ?? '—'}</Badge></div>
+              </li>
+            ))}
+          </ul>
+        </Card>
       </div>
-      <DeckPreview deck={row.deck} />
     </div>
   )
 }

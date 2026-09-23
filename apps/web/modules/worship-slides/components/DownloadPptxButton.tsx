@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { getTheme, renderPptxBytes, deckFileName, type SlideDeck } from '@selah/slide-engine'
-import { Button } from './ui'
+import { Button, Toast } from './ui'
 
 async function fetchAsset(url: string): Promise<{ dataUrl: string; bytes: number }> {
   const blob = await (await fetch(url)).blob()
@@ -11,7 +11,7 @@ async function fetchAsset(url: string): Promise<{ dataUrl: string; bytes: number
   return { dataUrl, bytes: blob.size }
 }
 
-export function DownloadPptxButton({ deck, titles, variant = 'primary' }: { deck: SlideDeck; titles: string[]; variant?: 'primary' | 'ghost' }) {
+export function DownloadPptxButton({ deck, titles, variant = 'primary', size = 'md' }: { deck: SlideDeck; titles: string[]; variant?: 'primary' | 'ghost'; size?: 'sm' | 'md' | 'lg' }) {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -36,10 +36,12 @@ export function DownloadPptxButton({ deck, titles, variant = 'primary' }: { deck
     } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false); setNote(null) }
   }
   return (
-    <div>
-      <Button variant={variant} onClick={run} disabled={busy || deck.slides.length === 0}>{busy ? '生成中…' : '下载 PPTX'}</Button>
-      {busy && note && <p className="mt-2 text-xs text-ink-soft">{note}</p>}
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    <div className="space-y-2">
+      <Button variant={variant} size={size} loading={busy} onClick={run} disabled={deck.slides.length === 0}>
+        {busy ? '生成中' : '下载 PPTX'}
+      </Button>
+      {busy && note && <p className="text-xs text-ink-soft">{note}</p>}
+      {error && <Toast tone="danger">{error}</Toast>}
     </div>
   )
 }

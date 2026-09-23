@@ -1,15 +1,43 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
-  --color-ink: #17161a;
-  --color-ink-soft: #5b5865;
-  --color-line: #e7e4ec;
-  --color-paper: #f7f5f9;
+  /* Type. The `--font-*-sc` variables are injected on <html> by next/font. */
+  --font-sans: var(--font-sans-sc), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: var(--font-serif-sc), "Songti SC", "STSong", "Noto Serif SC", "SimSun", Georgia, serif;
+
+  /* Paper-and-ink palette. Dark mode is out of scope. */
+  --color-paper: #f7f4ee;
+  --color-ink: #1e1b18;
+  --color-ink-soft: #6b655c;
+  --color-line: #e6e0d6;
   --color-card: #ffffff;
-  --color-accent: #6b5bd6;
-  --color-accent-soft: #eeebfb;
+  --color-accent: #4a44a8;
+  --color-accent-soft: #eceaf8;
+  --color-success: #2e7d5b;
+  --color-success-soft: #edf6f1;
+  --color-danger: #b4413c;
+  --color-danger-soft: #fbedec;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
   --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Motion: 150ms ease-out, hover/focus only. */
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
 }
 
-html, body { background: var(--color-paper); color: var(--color-ink); }
+@layer base {
+  html,
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+
+  /* One accent focus ring for everything; components never remove it. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
