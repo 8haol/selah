@@ -24,7 +24,8 @@ const STEPS = [
 const HERO_LINES = ['我心满溢　我心满溢', '对祢的爱和思念无止尽']
 
 export default function Home() {
-  const heroTheme = getTheme('night')
+  // the live 流光 loop, not a still: it is the first thing a visitor sees
+  const heroTheme = getTheme('flow-deep')
   const heroSlide: Slide = { kind: 'lyrics', lines: HERO_LINES.map((zh) => ({ zh, pinyin: annotateLine(zh, {}) })) }
 
   return (
@@ -71,7 +72,7 @@ export default function Home() {
       </section>
 
       <div className="mt-14 w-[calc(100%-48px)] max-w-[1040px] overflow-hidden rounded-[22px] shadow-[0_40px_90px_rgba(0,0,0,.2)] md:mt-20 md:w-[calc(100%-96px)]">
-        <SlideView slide={heroSlide} theme={heroTheme} static frameClassName="" />
+        <SlideView slide={heroSlide} theme={heroTheme} frameClassName="" />
       </div>
 
       <section className="mt-24 grid w-[calc(100%-48px)] max-w-[1040px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-12 md:mt-[140px] md:w-[calc(100%-96px)]">
