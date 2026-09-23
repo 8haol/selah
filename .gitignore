@@ -38,3 +38,5 @@ supabase/.temp
 # spike outputs
 spikes/**/out/
 spikes/**/node_modules/
+.vercel
+.env*
