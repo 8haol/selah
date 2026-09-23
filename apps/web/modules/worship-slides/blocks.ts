@@ -1,4 +1,4 @@
-import { expandFlow, parseHeader, sectionIdFor, type SectionType, type Song, type SongSection } from '@selah/slide-engine'
+import { expandFlow, isPinyinFor, parseHeader, sectionIdFor, type SectionType, type Song, type SongSection } from '@selah/slide-engine'
 
 /**
  * One block of lyrics as the import and edit screens show it: a kind
@@ -107,22 +107,27 @@ const norm = (text: string) => text.replace(/[\s，。！？、；：,.!?;:]/g, 
  * Pasted lyrics as blocks. A header line ("[副歌]", "Chorus:", "V2") starts a
  * block, and so does a blank line. A block that repeats an earlier one — the
  * same words, or just the header again — is that block sung again: it goes
- * into the order, not into a second copy.
+ * into the order, not into a second copy. A pinyin line under a Chinese
+ * line is dropped: the slides make their own.
  */
 export function blocksFromText(raw: string): { blocks: LyricBlock[]; flow: string[] } {
   const chunks: Array<{ tag: string | null; lines: string[] }> = []
   let cur: { tag: string | null; lines: string[] } | null = null
+  let prev = ''
   for (const rawLine of raw.replace(/\r\n?/g, '\n').split('\n')) {
     const line = rawLine.trim()
-    if (!line) { cur = null; continue }
+    if (!line) { cur = null; prev = ''; continue }
+    if (prev && isPinyinFor(prev, line)) { prev = ''; continue }
     const head = parseHeader(line)
     if (head) {
       cur = { tag: sectionIdFor(head.type, head.number ?? 1), lines: [] }
+      prev = ''
       chunks.push(cur)
       continue
     }
     if (!cur) { cur = { tag: null, lines: [] }; chunks.push(cur) }
     cur.lines.push(line)
+    prev = line
   }
 
   const blocks: LyricBlock[] = []

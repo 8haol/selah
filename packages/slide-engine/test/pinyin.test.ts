@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { annotateLine, annotateSong, polyphonicChoices, joinPinyin, spotKey } from '../src/pinyin.js'
+import { annotateLine, annotateSong, polyphonicChoices, joinPinyin, spotKey, isPinyinFor } from '../src/pinyin.js'
 import type { Song } from '../src/types.js'
 
 describe('annotateLine', () => {
@@ -86,5 +86,20 @@ describe('著 and spot overrides', () => {
     expect(annotateLine(line, { [spotKey(line, 5)]: 'zháo' })).toEqual(annotateLine(line).map((p, i) => (i === 5 ? 'zháo' : p)))
     expect(annotateLine('另一行着', { [spotKey(line, 5)]: 'zháo' })[3]).toBe('zhe')
     expect(annotateLine(line, { 着: 'zháo' }).filter((p) => p === 'zháo')).toHaveLength(2)
+  })
+})
+
+describe('isPinyinFor', () => {
+  it('spots the pinyin printed under a line, with or without tone marks', () => {
+    expect(isPinyinFor('人算什麼 祢竟顧念他', 'rén suàn shí me  mí jìng gù niàn tā')).toBe(true)
+    expect(isPinyinFor('我深知道世上所有', 'wo shen zhi dao shi shang suo you')).toBe(true)
+    // combining marks, as some pages send them
+    expect(isPinyinFor('患難困苦', 'huàn nán kùn kǔ')).toBe(true)
+  })
+  it('leaves English lyrics and Chinese lines alone', () => {
+    expect(isPinyinFor('我爱你', 'I love you Lord')).toBe(false)
+    expect(isPinyinFor('奇异恩典', 'Amazing grace how sweet the sound')).toBe(false)
+    expect(isPinyinFor('我爱你', '我爱你')).toBe(false)
+    expect(isPinyinFor('Amazing grace', 'how sweet the sound')).toBe(false)
   })
 })

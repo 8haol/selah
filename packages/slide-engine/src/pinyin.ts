@@ -130,6 +130,24 @@ export function joinPinyin(pinyinArr: string[]): string {
   return pinyinArr.filter(Boolean).join(' ')
 }
 
+const SYLLABLE = /^(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(?:a|o|e|ai|ei|ao|ou|an|en|ang|eng|ong|er|i|ia|ie|iao|iu|ian|in|iang|ing|iong|u|ua|uo|uai|ui|uan|un|uang|ue|v|ve)$/
+
+/**
+ * Whether `line` is the pinyin printed under the Chinese line `zh` — lyric
+ * sheets copied from YouTube and the like often carry one under every line.
+ * Every word has to be a pinyin syllable, and either there is one per Chinese
+ * character or the tone marks give it away; English lyrics are neither.
+ */
+export function isPinyinFor(zh: string, line: string): boolean {
+  const han = [...zh].filter(isChinese).length
+  if (han === 0 || CJK.test(line)) return false
+  const nfd = line.normalize('NFD').toLowerCase()
+  const toned = /[\u0300\u0301\u030c\u0304]/.test(nfd)
+  const words = nfd.replace(/\p{M}/gu, '').replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean)
+  if (words.length === 0 || !words.every((w) => SYLLABLE.test(w))) return false
+  return words.length === han || toned
+}
+
 /** The same line with its pinyin row blanked — the 显示拼音 switch, off. */
 export function stripPinyin(line: LyricLine): LyricLine {
   return { ...line, pinyin: line.pinyin.map(() => '') }

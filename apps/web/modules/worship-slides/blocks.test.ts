@@ -20,6 +20,10 @@ describe('blocksFromText', () => {
     expect(blockIds(blocks)).toEqual(['V1', 'C', 'V2'])
     expect(flowIds(blocks, flow)).toEqual(['V1', 'C', 'V2', 'C'])
   })
+  it('drops the pinyin line printed under each Chinese line, and keeps English lyrics', () => {
+    const { blocks } = blocksFromText('當我抬頭仰望\ndāng wǒ tái tóu yǎng wàng\n\n人算什麼 祢竟顧念他\nrén suàn shí me  mí jìng gù niàn tā\n世人算什麼\nshì rén suàn shí me\n\nAmazing grace\nhow sweet the sound')
+    expect(blocks.map((b) => b.text)).toEqual(['當我抬頭仰望', '人算什麼 祢竟顧念他\n世人算什麼', 'Amazing grace\nhow sweet the sound'])
+  })
   it('untagged paragraphs become verses', () => {
     expect(blockIds(blocksFromText('一\n二\n\n三\n四').blocks)).toEqual(['V1', 'V2'])
   })
