@@ -16,9 +16,21 @@
 - 设计文档：[docs/superpowers/specs/2026-09-22-platform-and-worship-slides-design.md](docs/superpowers/specs/2026-09-22-platform-and-worship-slides-design.md)
 - Phase 0 技术验证结论：[spikes/pptx-pinyin/FINDINGS.md](spikes/pptx-pinyin/FINDINGS.md)
 
-## 状态
+## 本地运行
 
-Phase 0 spike 完成，设计文档 v2 待审阅。Phase 1（MVP）待批准后开始。
+```bash
+pnpm install
+pnpm --filter @selah/web db:seed   # 可选：写入一首示例歌
+pnpm dev                            # http://localhost:3000
+```
+本地不需要任何数据库：留空 `DATABASE_URL` 时数据存在 `apps/web/.data/pglite/`。
+
+## 部署（Vercel + Neon）
+
+1. Vercel 新建项目，导入 `8haol/selah`，Root Directory 设为 `apps/web`，Framework 选 Next.js。
+2. Storage → 添加 Neon Postgres（免费档），Vercel 会自动注入 `DATABASE_URL`。
+3. 在 Environment Variables 里加 `SELAH_AUTO_MIGRATE=1`（首次部署自动建表；之后可删）。
+4. Deploy。打开域名 → `/worship`。
 
 ## 技术栈
 
