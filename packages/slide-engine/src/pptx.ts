@@ -92,9 +92,35 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
     const themeId = slide.themeId ?? deck.themeId
     const theme = slideTheme(deck, slide)
     const newShadow = () => shadowOf(theme)
-    const stroke = (sizePt: number) => {
-      const o = outlinePt(theme, sizePt)
-      return o ? { outline: { color: hex(o.color), size: o.widthPt } } : {}
+    /**
+     * One character box: the pinyin run over the character run. With 字体描边
+     * it goes down twice. PowerPoint strokes on the glyph edge, half over the
+     * fill, so a stroke on the lyric itself eats thin strokes and hollows the
+     * pinyin out. Instead a copy in the stroke colour carries the outline
+     * underneath and the lyric on top carries none — only the outer half of
+     * the stroke shows, as in the preview's paint-order.
+     */
+    type CellText = { zh: string; py: string; zhPt: number; pyPt: number; zhFont: string; zhColor: string }
+    type Box = { x: number; y: number; w: number; h: number }
+    const addCell = (c: CellText, box: Box) => {
+      const runs = (color: { zh: string; py: string }, outline?: (pt: number) => { color: string; size: number }) => {
+        const zhRun = { text: c.zh, options: { fontFace: c.zhFont, fontSize: c.zhPt, bold: true, color: color.zh, ...(outline ? { outline: outline(c.zhPt) } : {}) } }
+        return c.py
+          ? [{ text: c.py, options: { fontFace: theme.fonts.pinyin, fontSize: c.pyPt, color: color.py, breakLine: true, ...(outline ? { outline: outline(c.pyPt) } : {}) } }, zhRun]
+          : [zhRun]
+      }
+      const place = { x: inch(box.x), y: inch(box.y), w: inch(box.w), h: inch(box.h), margin: 0, align: 'center' as const, valign: 'bottom' as const, fit: 'none' as const, wrap: false }
+      const o = outlinePt(theme, c.zhPt)
+      if (o) {
+        const edge = hex(o.color)
+        const width = (pt: number) => ({ color: edge, size: outlinePt(theme, pt)!.widthPt })
+        // `shadow` only takes effect on the text box — pptxgenjs drops it from
+        // a run's options. It rides on the lowest layer so it falls once.
+        s.addText(runs({ zh: edge, py: edge }, width), { ...place, shadow: newShadow() })
+        s.addText(runs({ zh: hex(c.zhColor), py: hex(theme.colors.pinyin) }), place)
+        return
+      }
+      s.addText(runs({ zh: hex(c.zhColor), py: hex(theme.colors.pinyin) }), { ...place, shadow: newShadow() })
     }
     const { background, video } = bg.get(themeId)!
     const s = pptx.addSlide()
@@ -111,11 +137,10 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
         const bottom = 3.62 * 72
         let x = (SLIDE_W_PT - t.widthPt) / 2
         for (const [i, cell] of t.cells.entries()) {
-          const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.title, fontSize: t.zhPt, bold: true, color: hex(theme.colors.title), ...stroke(t.zhPt) } }
-          const runs = cell.py
-            ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: t.pyPt, color: hex(theme.colors.pinyin), breakLine: true, ...stroke(t.pyPt) } }, zhRun]
-            : [zhRun]
-          s.addText(runs, { x: inch(x), y: inch(bottom - h), w: inch(cell.widthPt), h: inch(h), margin: 0, align: 'center', valign: 'bottom', fit: 'none', wrap: false, shadow: newShadow() })
+          addCell(
+            { zh: cell.zh, py: cell.py, zhPt: t.zhPt, pyPt: t.pyPt, zhFont: theme.fonts.title, zhColor: theme.colors.title },
+            { x, y: bottom - h, w: cell.widthPt, h },
+          )
           x += cell.widthPt + (cell.gapAfter && i < t.cells.length - 1 ? 0.3 * t.zhPt : 0)
         }
       } else {
@@ -153,14 +178,10 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
       // a single cell can be wider than the content box; never start off the left edge
       let x = Math.max(CONTENT_X_PT, CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2)
       for (const [cellIndex, cell] of row.cells.entries()) {
-        const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.zh, fontSize: lay.zhPt, bold: true, color: hex(theme.colors.zh), ...stroke(lay.zhPt) } }
-        const runs = cell.py
-          ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: lay.pyPt, color: hex(theme.colors.pinyin), breakLine: true, ...stroke(lay.pyPt) } }, zhRun]
-          : [zhRun]
-        // `shadow` only takes effect on the text box — pptxgenjs drops it from a
-        // run's options, which is why exported lyrics used to carry none at all.
-        // On the box it covers the pinyin run and the character run together.
-        s.addText(runs, { x: inch(x), y: inch(y), w: inch(cell.widthPt), h: inch(h), margin: 0, align: 'center', valign: 'bottom', fit: 'none', wrap: false, shadow: newShadow() })
+        addCell(
+          { zh: cell.zh, py: cell.py, zhPt: lay.zhPt, pyPt: lay.pyPt, zhFont: theme.fonts.zh, zhColor: theme.colors.zh },
+          { x, y, w: cell.widthPt, h },
+        )
         x += cell.widthPt + (cell.gapAfter && cellIndex < row.cells.length - 1 ? 0.5 * lay.zhPt : 0)
       }
     })

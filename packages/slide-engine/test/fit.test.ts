@@ -95,6 +95,32 @@ describe('字体描边', () => {
     const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
     expect(xml).toMatch(/<a:ln w="\d+"><a:solidFill><a:srgbClr val="000000"/)
   })
+
+  it('draws the stroke behind the characters, never over them', async () => {
+    // PowerPoint strokes on the glyph edge, half over the fill: a stroke on the
+    // lyric itself eats thin strokes and hollows out the pinyin. So the stroke
+    // rides on a copy underneath, and the lyric on top carries none.
+    const deck = buildDeck({ songs: [song], flows: { s1: 'E' }, themeId: 'night', titleSlides: false, outline: 'thick' })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'nodebuffer' })) as Buffer)
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
+    const shapes = xml.split('<p:sp>').slice(1)
+    const withText = (zh: string) => shapes.filter((sp) => sp.includes(`>${zh}<`))
+    const [under, over] = withText('直')
+    expect(withText('直')).toHaveLength(2)
+    expect(under).toMatch(/<a:ln w="\d+">/)
+    expect(under).toContain('val="000000"')
+    expect(over).not.toMatch(/<a:ln w="\d+">/)
+    expect(over).toContain('val="FFFFFF"')
+  })
+
+  it('without 描边, sets each character once', async () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'E' }, themeId: 'night', titleSlides: false })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'nodebuffer' })) as Buffer)
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
+    expect(xml.split('<p:sp>').filter((sp) => sp.includes('>直<'))).toHaveLength(1)
+  })
 })
 
 describe('每页行数 3', () => {
