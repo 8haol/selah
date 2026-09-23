@@ -44,7 +44,7 @@ export function SlideView({ slide, theme }: { slide: Slide; theme: Theme }) {
             {lay.rows.map((row, ri) => (
               <div key={ri} style={{ position: 'absolute', display: 'flex', left: px(CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2), top: px(lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)), height: px(lay.rowHeightPt) }}>
                 {row.cells.map((cell, ci) => (
-                  <div key={ci} style={{ width: px(cell.widthPt), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center' }}>
+                  <div key={ci} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < row.cells.length - 1 ? px(0.5 * lay.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center' }}>
                     {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt * 0.75), lineHeight: 1, color: theme.colors.pinyin, whiteSpace: 'nowrap' }}>{cell.py}</span>}
                     <span style={{ fontFamily: FONT_ZH, fontSize: px(lay.zhPt * 0.75), lineHeight: 1.05, fontWeight: 700, color: theme.colors.zh, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
                   </div>
