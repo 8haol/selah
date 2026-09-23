@@ -10,7 +10,9 @@ export const maxDuration = 120
  * only money it can spend is that account's prepaid balance. When the balance
  * is gone OpenAI refuses the call and the page says so.
  */
-const MODEL = process.env.SELAH_OCR_MODEL || 'gpt-5.2'
+// Picked on 2026-09-23 against two real sheets: the only one of six that read
+// every stanza and repeat right on every run, at 12–31s a page.
+const MODEL = process.env.SELAH_OCR_MODEL || 'gpt-5.6-sol'
 const EFFORT = (process.env.SELAH_OCR_EFFORT || 'medium') as 'low' | 'medium' | 'high'
 
 // The browser shrinks every page to a JPEG first, so these only stop abuse.
@@ -98,12 +100,24 @@ export async function POST(req: Request) {
     })
 
     // Keep only well-formed sections and a flow that refers to them.
-    const sections = output.sections
-      .map((s) => ({ tag: s.tag.trim().toUpperCase(), lines: s.lines.map((l) => l.trim()).filter(Boolean) }))
-      .filter((s) => TAG.test(s.tag) && s.lines.length > 0)
+    // Keep only well-formed sections. A repeat the model wrote out twice under
+    // two tags is one section sung twice, so fold identical lyrics together.
+    const sections: RecognizeResult['sections'] = []
+    const alias = new Map<string, string>()
+    const byText = new Map<string, string>()
+    for (const s of output.sections) {
+      const tag = s.tag.trim().toUpperCase()
+      const lines = s.lines.map((l) => l.trim()).filter(Boolean)
+      if (!TAG.test(tag) || lines.length === 0 || alias.has(tag)) continue
+      const key = lines.join('').replace(/\s/g, '')
+      const same = byText.get(key)
+      if (same) { alias.set(tag, same); continue }
+      byText.set(key, tag)
+      alias.set(tag, tag)
+      sections.push({ tag, lines })
+    }
     if (sections.length === 0) return Response.json({ ok: false, message: '这张图里没找到歌词。' }, { status: 422 })
-    const tags = new Set(sections.map((s) => s.tag))
-    const flow = output.flow.map((t) => t.trim().toUpperCase()).filter((t) => tags.has(t))
+    const flow = output.flow.map((t) => alias.get(t.trim().toUpperCase())).filter((t): t is string => !!t)
 
     const result: RecognizeResult = {
       title: output.title.trim(),
