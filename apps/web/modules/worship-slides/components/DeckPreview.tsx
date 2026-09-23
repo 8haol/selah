@@ -15,7 +15,13 @@ function shadow(theme: Theme): string | undefined {
   return `0 4px 18px rgba(${rgb},${opacity}), 0 1px 2px rgba(${rgb},${opacity * 0.6})`
 }
 
-export function SlideView({ slide, theme }: { slide: Slide; theme: Theme }) {
+/** The still frame for a theme: the JPEG itself, or a video theme's poster. */
+export function posterSrc(theme: Theme): string {
+  return theme.background.kind === 'video' ? theme.background.poster : theme.background.src
+}
+
+/** `static` keeps thumbnails on the poster — dozens of playing videos at once is not worth it. */
+export function SlideView({ slide, theme, static: isStatic = false }: { slide: Slide; theme: Theme; static?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.2)
   useEffect(() => {
@@ -25,9 +31,13 @@ export function SlideView({ slide, theme }: { slide: Slide; theme: Theme }) {
   }, [])
   const sh = shadow(theme)
   const lay = slide.kind === 'lyrics' ? layoutSlide(slide.lines, theme) : null
+  const video = !isStatic && theme.background.kind === 'video' ? theme.background : null
   return (
     <div ref={ref} className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
-      <div style={{ width: 1920, height: px(SLIDE_H_PT), transform: `scale(${scale})`, transformOrigin: '0 0', position: 'absolute', inset: 0, backgroundImage: `url(${theme.background.src})`, backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: FONT_ZH }}>
+      <div style={{ width: 1920, height: px(SLIDE_H_PT), transform: `scale(${scale})`, transformOrigin: '0 0', position: 'absolute', inset: 0, backgroundImage: `url(${posterSrc(theme)})`, backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: FONT_ZH }}>
+        {video && (
+          <video src={video.src} poster={video.poster} autoPlay loop muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
         {slide.kind === 'title' && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
             <div style={{ fontFamily: FONT_TITLE, fontSize: px(theme.sizes.title * 0.75), fontWeight: 700, letterSpacing: '.08em', color: theme.colors.title, textShadow: sh }}>{slide.title}</div>
@@ -78,7 +88,7 @@ export function DeckPreview({ deck }: { deck: SlideDeck }) {
       <div className="flex items-center justify-between text-xs text-ink-soft"><span>{i + 1} / {n} · {cur.kind === 'title' ? '标题' : cur.kind === 'blank' ? '空白' : cur.sectionLabel}</span><span>← → 翻页</span></div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {deck.slides.map((s, k) => (
-          <button key={k} onClick={() => setI(k)} className={`w-32 shrink-0 rounded-md ring-2 ${k === i ? 'ring-accent' : 'ring-transparent'}`}><SlideView slide={s} theme={theme} /></button>
+          <button key={k} onClick={() => setI(k)} className={`w-32 shrink-0 rounded-md ring-2 ${k === i ? 'ring-accent' : 'ring-transparent'}`}><SlideView slide={s} theme={theme} static /></button>
         ))}
       </div>
     </div>

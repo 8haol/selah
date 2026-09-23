@@ -1,12 +1,10 @@
 import sharp from 'sharp'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { measureBackground, updateManifest, THEMES_DIR } from './measure.mjs'
 
 const W = 1920
 const H = 1080
-const SAMPLE_W = 480
-const SAMPLE_H = 270
 
 const defsCommon = `
   <filter id="blur-xl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="140"/></filter>
@@ -276,52 +274,7 @@ const themes = [
   },
 ]
 
-const channelLuminance = (value) => {
-  const channel = value / 255
-  return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
-}
-
-const pixelLuminance = (red, green, blue) =>
-  0.2126 * channelLuminance(red) + 0.7152 * channelLuminance(green) + 0.0722 * channelLuminance(blue)
-
-const rgbToHex = (red, green, blue) =>
-  `#${[red, green, blue].map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('')}`
-
-async function measureBackground(file) {
-  const left = Math.round(SAMPLE_W * 0.08)
-  const top = Math.round(SAMPLE_H * 0.14)
-  const width = Math.round(SAMPLE_W * 0.84)
-  const height = Math.round(SAMPLE_H * 0.78)
-  const { data, info } = await sharp(file)
-    .resize(SAMPLE_W, SAMPLE_H, { fit: 'fill' })
-    .extract({ left, top, width, height })
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-  const pixels = []
-  let red = 0
-  let green = 0
-  let blue = 0
-  for (let offset = 0; offset < data.length; offset += info.channels) {
-    const r = data[offset]
-    const g = data[offset + 1]
-    const b = data[offset + 2]
-    red += r
-    green += g
-    blue += b
-    pixels.push({ luminance: pixelLuminance(r, g, b), red: r, green: g, blue: b })
-  }
-  pixels.sort((a, b) => a.luminance - b.luminance)
-  const count = pixels.length
-  const p95 = pixels[Math.floor(0.95 * (count - 1))]
-  const p05 = pixels[Math.floor(0.05 * (count - 1))]
-  return {
-    avg: rgbToHex(red / count, green / count, blue / count),
-    p95: rgbToHex(p95.red, p95.green, p95.blue),
-    p05: rgbToHex(p05.red, p05.green, p05.blue),
-  }
-}
-
-const outDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../apps/web/public/themes')
+const outDir = THEMES_DIR
 fs.mkdirSync(outDir, { recursive: true })
 const manifest = {}
 const rows = []
@@ -340,5 +293,5 @@ for (const theme of themes) {
   manifest[theme.id] = measured
   rows.push({ id: theme.id, ...measured, size: `${(bytes / 1024).toFixed(0)} KB` })
 }
-fs.writeFileSync(path.join(outDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+updateManifest(manifest)
 console.table(rows)

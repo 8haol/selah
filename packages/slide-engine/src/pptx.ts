@@ -2,10 +2,20 @@ import PptxGenJS from 'pptxgenjs'
 import type { SlideDeck, Theme } from './types'
 import { getTheme } from './themes'
 import { layoutSlide, CONTENT_X_PT, CONTENT_W_PT } from './layout'
+import { postProcessVideoDeck } from './pptx-post'
 
-export interface RenderPptxOptions { backgroundDataUrl: string }
+export interface RenderAssets {
+  /** JPEG data URL: the image theme's background, or the video theme's poster. */
+  backgroundDataUrl: string
+  /** MP4 data URL. Required for video themes, ignored for image themes. */
+  videoDataUrl?: string
+}
+
+/** @deprecated use {@link RenderAssets} */
+export type RenderPptxOptions = RenderAssets
 
 const SW = 10
+const SH = 5.625
 const inch = (pt: number) => pt / 72
 const hex = (c: string) => c.replace('#', '')
 
@@ -28,16 +38,22 @@ export function deckFileName(deck: SlideDeck, titles: string[]): string {
   return `${date} ${first}${more}.pptx`
 }
 
-export async function renderPptx(deck: SlideDeck, opts: RenderPptxOptions): Promise<PptxGenJS> {
+export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise<PptxGenJS> {
   const theme = getTheme(deck.themeId)
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
-  const background = { data: bgData(opts.backgroundDataUrl) }
+  const background = { data: bgData(assets.backgroundDataUrl) }
   const shadow = shadowOf(theme)
+  if (theme.background.kind === 'video' && !assets.videoDataUrl) {
+    throw new Error(`动态主题 "${theme.name}" 需要提供视频文件`)
+  }
+  const video = theme.background.kind === 'video' ? bgData(assets.videoDataUrl!) : null
 
   for (const slide of deck.slides) {
     const s = pptx.addSlide()
     s.background = background
+    // before every text box, so the clip sits at the back of the slide
+    if (video) s.addMedia({ type: 'video', data: video, cover: background.data, x: 0, y: 0, w: SW, h: SH })
     if (slide.kind === 'blank') continue
 
     if (slide.kind === 'title') {
@@ -71,4 +87,15 @@ export async function renderPptx(deck: SlideDeck, opts: RenderPptxOptions): Prom
     })
   }
   return pptx
+}
+
+/**
+ * The finished .pptx bytes. Video themes are post-processed so the deck carries
+ * one shared copy of the clip and every slide starts and loops it on its own.
+ */
+export async function renderPptxBytes(deck: SlideDeck, assets: RenderAssets): Promise<Uint8Array> {
+  const theme = getTheme(deck.themeId)
+  const pptx = await renderPptx(deck, assets)
+  const bytes = (await pptx.write({ outputType: 'uint8array' })) as Uint8Array
+  return theme.background.kind === 'video' ? postProcessVideoDeck(bytes, theme.background.durationMs) : bytes
 }

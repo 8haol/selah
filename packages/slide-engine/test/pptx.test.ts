@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
 import JSZip from 'jszip'
 import { buildDeck } from '../src/deck.js'
-import { renderPptx, deckFileName } from '../src/pptx.js'
+import { renderPptx, renderPptxBytes, deckFileName } from '../src/pptx.js'
 import type { Song } from '../src/types.js'
 
 // 1×1 white JPEG
@@ -44,6 +46,44 @@ describe('renderPptx', () => {
 
     const rels2 = await zip.file('ppt/slides/_rels/slide2.xml.rels')!.async('string')
     expect(rels2).toMatch(/relationships\/image/)
+  })
+  it('embeds one shared, auto-starting, looping, muted video for a dynamic theme', async () => {
+    const mp4 = fs.readFileSync(path.resolve(__dirname, 'fixtures/tiny.mp4')).toString('base64')
+    const deck = buildDeck({ songs: [song], flows: { s1: 'V1 C' }, themeId: 'flow-deep' })
+    const bytes = await renderPptxBytes(deck, {
+      backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}`,
+      videoDataUrl: `data:video/mp4;base64,${mp4}`,
+    })
+    const zip = await JSZip.loadAsync(bytes)
+    const names = Object.keys(zip.files)
+
+    // exactly one copy of the clip, however many slides embed it
+    const mp4s = names.filter((n) => /^ppt\/media\/.+\.mp4$/.test(n))
+    expect(mp4s.length).toBe(1)
+    const keptMp4 = mp4s[0]!.slice('ppt/media/'.length)
+
+    const slideFiles = names.filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort()
+    expect(slideFiles.length).toBe(deck.slides.length)
+    expect(slideFiles.length).toBeGreaterThanOrEqual(2)
+
+    for (const slideFile of slideFiles) {
+      const n = slideFile.match(/slide(\d+)\.xml$/)![1]
+      const rels = await zip.file(`ppt/slides/_rels/slide${n}.xml.rels`)!.async('string')
+      expect(rels, slideFile).toContain(`Target="../media/${keptMp4}"`)
+      expect(rels.match(/Target="\.\.\/media\/[^"]+\.mp4"/g)!.every((t) => t.includes(keptMp4))).toBe(true)
+
+      const xml = await zip.file(slideFile)!.async('string')
+      const spid = xml.match(/<p:pic>[\s\S]*?<a:videoFile[\s\S]*?<\/p:pic>/)!
+      const picId = spid[0].match(/<p:cNvPr\s+id="(\d+)"/)![1]
+      expect(xml, slideFile).toContain('<p:timing>')
+      expect(xml).toContain('repeatCount="indefinite"')
+      expect(xml).toContain('mute="1"')
+      expect(xml).toContain('showWhenStopped="0"')
+      expect(xml).toContain(`<p:spTgt spid="${picId}"/>`)
+      expect(xml).toContain('<p:cTn id="6" dur="10000" fill="hold"/>')
+      // the timing tree is the last child of <p:sld>
+      expect(xml.endsWith('</p:timing></p:sld>')).toBe(true)
+    }
   })
   it('names the file with date, first title and count', () => {
     const deck = buildDeck({ songs: [song], flows: {}, themeId: 'night' })

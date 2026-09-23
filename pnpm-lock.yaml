@@ -83,6 +83,9 @@ importers:
 
   packages/slide-engine:
     dependencies:
+      jszip:
+        specifier: ^3.10.2
+        version: 3.10.2
       pinyin-pro:
         specifier: ^3.29.4
         version: 3.29.4
@@ -93,9 +96,6 @@ importers:
       '@types/node':
         specifier: ^22.15.0
         version: 22.20.4
-      jszip:
-        specifier: ^3.10.2
-        version: 3.10.2
       sharp:
         specifier: ^0.34.0
         version: 0.34.5

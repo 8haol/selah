@@ -26,13 +26,17 @@ export interface Song {
   defaultFlow: string
 }
 
-export type BackgroundKind = 'image'
+export type BackgroundKind = 'image' | 'video'
+
+export type ThemeBackground =
+  | { kind: 'image'; src: string; approxColor: string }
+  | { kind: 'video'; src: string; poster: string; approxColor: string; durationMs: number }
 
 export interface Theme {
   id: string
   name: string
   description: string
-  background: { kind: BackgroundKind; src: string; approxColor: string }
+  background: ThemeBackground
   fonts: { zh: string; pinyin: string; title: string }
   sizes: { zh: number; pinyin: number; title: number; titlePinyin: number; badge: number; meta: number }
   colors: { zh: string; pinyin: string; title: string; rule: string; badge: string; meta: string }

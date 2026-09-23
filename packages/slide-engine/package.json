@@ -9,15 +9,16 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "backgrounds": "node scripts/build-backgrounds.mjs"
+    "backgrounds": "node scripts/build-backgrounds.mjs",
+    "videos": "node scripts/build-videos.mjs"
   },
   "dependencies": {
+    "jszip": "^3.10.2",
     "pinyin-pro": "^3.29.4",
     "pptxgenjs": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
-    "jszip": "^3.10.2",
     "sharp": "^0.34.0",
     "typescript": "^5.6.0",
     "vitest": "^5.0.1"

@@ -81,6 +81,37 @@ export const BUILTIN_THEMES: Theme[] = [
     colors: { zh: '#FFF6E8', pinyin: '#FFD9A0', title: '#FFF6E8', rule: '#FF9B3D', badge: '#FFE7C2', meta: '#D9B896' },
     shadow: dark('#000000', 0.65), ...base,
   },
+  // --- 动态主题 (video) ---
+  {
+    id: 'flow-deep', name: '流光 · 深海', description: '青蓝色流光在深海底色上缓缓漂移，循环播放。',
+    background: { kind: 'video', src: '/themes/video/flow-deep.mp4', poster: '/themes/video/flow-deep.jpg', approxColor: '#082f46', durationMs: 10_000 },
+    colors: { zh: '#FFFFFF', pinyin: '#BFF3F8', title: '#FFFFFF', rule: '#5FD6E3', badge: '#D9FAFD', meta: '#9ED3DA' },
+    shadow: dark('#031521', 0.6), ...base,
+  },
+  {
+    id: 'flow-sanctuary', name: '流光 · 圣殿', description: '紫红与琥珀色流光交织，庄重温暖，循环播放。',
+    background: { kind: 'video', src: '/themes/video/flow-sanctuary.mp4', poster: '/themes/video/flow-sanctuary.jpg', approxColor: '#3b1733', durationMs: 10_000 },
+    colors: { zh: '#FFF8EC', pinyin: '#FFE0A3', title: '#FFF8EC', rule: '#E3B762', badge: '#F7E3B0', meta: '#D9C39A' },
+    shadow: dark('#1A0A1E', 0.6), ...base,
+  },
+  {
+    id: 'clouds', name: '云层 · 夜空', description: '夜空云层缓缓流过，右上角一抹月晕，循环播放。',
+    background: { kind: 'video', src: '/themes/video/clouds.mp4', poster: '/themes/video/clouds.jpg', approxColor: '#141e39', durationMs: 10_000 },
+    colors: { zh: '#FFFFFF', pinyin: '#C9D3FF', title: '#FFFFFF', rule: '#8FA3FF', badge: '#DCE3FF', meta: '#AAB4E6' },
+    shadow: dark('#02040C', 0.65), ...base,
+  },
+  {
+    id: 'rays-motion', name: '光束 · 晨光', description: '暖金色光束自上方缓缓摇曳，循环播放。',
+    background: { kind: 'video', src: '/themes/video/rays-motion.mp4', poster: '/themes/video/rays-motion.jpg', approxColor: '#17232c', durationMs: 10_000 },
+    colors: { zh: '#FFFFFF', pinyin: '#FFE9B0', title: '#FFFFFF', rule: '#E9C877', badge: '#FFF0C8', meta: '#C9C2A8' },
+    shadow: dark('#0A1018', 0.65), ...base,
+  },
+  {
+    id: 'bokeh', name: '光斑 · Bokeh', description: '暖色光斑在深蓝夜色中缓缓上浮，循环播放。',
+    background: { kind: 'video', src: '/themes/video/bokeh.mp4', poster: '/themes/video/bokeh.jpg', approxColor: '#24263a', durationMs: 10_000 },
+    colors: { zh: '#FFFFFF', pinyin: '#FFE1B0', title: '#FFFFFF', rule: '#FFD27A', badge: '#FFF0D6', meta: '#C9C2B0' },
+    shadow: dark('#05070F', 0.65), ...base,
+  },
 ]
 
 export function getTheme(id: string): Theme {
