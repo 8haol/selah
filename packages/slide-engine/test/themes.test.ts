@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { BUILTIN_THEMES, getTheme } from '../src/themes.js'
-import { assertThemeContrast, type MeasuredBackground } from '../src/contrast.js'
+import { assertThemeContrast, contrastRatio, type MeasuredBackground } from '../src/contrast.js'
 
 const IDS = [
   'night', 'sanctuary', 'deep', 'meadow', 'dawn', 'paper', 'cross-dawn', 'cross-glow', 'rays', 'stained-glass', 'dove', 'candle',
@@ -27,6 +27,16 @@ describe('BUILTIN_THEMES', () => {
       expect(fs.statSync(publicFile(measured)).size).toBeLessThanOrEqual(100 * 1024)
     }
   })
+  it('never gives the pinyin less contrast than the Chinese it annotates', () => {
+    // The pinyin is the smaller, thinner, unbolded row — it needs at least as
+    // much separation from the background as the character above it, not less.
+    for (const t of BUILTIN_THEMES) {
+      const m = manifest[t.id]!
+      const zh = contrastRatio(t.colors.zh, m.avg)
+      const py = contrastRatio(t.colors.pinyin, m.avg)
+      expect(py, `${t.id}: pinyin ${py.toFixed(2)} vs zh ${zh.toFixed(2)}`).toBeGreaterThanOrEqual(zh)
+    }
+  })
   it('uses the mandated lyric typography', () => {
     for (const t of BUILTIN_THEMES) {
       expect(t.fonts.zh).toBe('SimHei'); expect(t.sizes.zh).toBe(45)
@@ -37,7 +47,7 @@ describe('BUILTIN_THEMES', () => {
       } else {
         expect(t.background.src).toBe(`/themes/video/${t.id}.mp4`)
         expect(t.background.poster).toBe(`/themes/video/${t.id}.jpg`)
-        expect(t.background.durationMs).toBe(10_000)
+        expect(t.background.durationMs).toBe(24_000)
       }
     }
   })

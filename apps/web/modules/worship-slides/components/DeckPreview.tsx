@@ -39,11 +39,12 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
           <video src={video.src} poster={video.poster} autoPlay loop muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
         {slide.kind === 'title' && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            {/* pinyin above the characters it annotates, as on every lyric line */}
+            <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.titlePinyin * 0.75), letterSpacing: '.06em', color: theme.colors.pinyin, textShadow: sh, marginBottom: px(8) }}>{slide.titlePinyin}</div>
             <div style={{ fontFamily: FONT_TITLE, fontSize: px(theme.sizes.title * 0.75), fontWeight: 700, letterSpacing: '.08em', color: theme.colors.title, textShadow: sh }}>{slide.title}</div>
-            <div style={{ width: 220, height: 3, borderRadius: 2, background: theme.colors.rule, opacity: 0.9 }} />
-            <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.titlePinyin * 0.75), letterSpacing: '.06em', color: theme.colors.pinyin }}>{slide.titlePinyin}</div>
-            {slide.meta && <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.meta * 0.75), letterSpacing: '.14em', textTransform: 'uppercase', marginTop: 26, opacity: 0.85, color: theme.colors.meta }}>{slide.meta}</div>}
+            <div style={{ width: 220, height: 3, borderRadius: 2, background: theme.colors.rule, opacity: 0.9, marginTop: px(16) }} />
+            {slide.meta && <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.meta * 0.75), letterSpacing: '.14em', textTransform: 'uppercase', marginTop: px(20), opacity: 0.85, color: theme.colors.meta }}>{slide.meta}</div>}
           </div>
         )}
         {slide.kind === 'lyrics' && lay && (
@@ -55,7 +56,7 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
               <div key={ri} style={{ position: 'absolute', display: 'flex', left: px(CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2), top: px(lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)), height: px(lay.rowHeightPt) }}>
                 {row.cells.map((cell, ci) => (
                   <div key={ci} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < row.cells.length - 1 ? px(0.5 * lay.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center' }}>
-                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt * 0.75), lineHeight: 1, color: theme.colors.pinyin, whiteSpace: 'nowrap' }}>{cell.py}</span>}
+                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt * 0.75), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.py}</span>}
                     <span style={{ fontFamily: FONT_ZH, fontSize: px(lay.zhPt * 0.75), lineHeight: 1.05, fontWeight: 700, color: theme.colors.zh, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
                   </div>
                 ))}

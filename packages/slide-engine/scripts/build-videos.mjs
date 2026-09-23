@@ -9,6 +9,14 @@
 // A radial scrim is baked in (0.72 at the centre of the text zone rising to 1.0
 // at its edge) so a moving highlight can never drift unfiltered behind lyrics.
 //
+// The render is 640x360 and ffmpeg upscales to 1080p with lanczos. That is not
+// a shortcut: the sampler's highest-frequency term is the ribbon layer at ~7.5
+// cycles over the height, so 360 rows already sit well above its Nyquist rate
+// and the upscale is interpolating a band-limited signal rather than inventing
+// detail. What used to cost clarity was the finish, not the render size — a
+// 384x216 source stretched 3.3x through `gblur=sigma=6` with heavy grain at
+// crf 26. Light blur and a lower crf are what make the clip read as sharp.
+//
 // usage: node scripts/build-videos.mjs [id ...]      (default: all five)
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -16,14 +24,33 @@ import path from 'node:path'
 import sharp from 'sharp'
 import { measureBackground, updateManifest, THEMES_DIR } from './measure.mjs'
 
-const FFMPEG = '/opt/homebrew/bin/ffmpeg'
-const RW = 384
-const RH = 216
-const OUT_W = 1280
-const OUT_H = 720
+const FFMPEG = process.env.FFMPEG ?? '/opt/homebrew/bin/ffmpeg'
+const RW = Number(process.env.RW ?? 640)
+const RH = Number(process.env.RH ?? 360)
+const OUT_W = Number(process.env.OUT_W ?? 1920)
+const OUT_H = Number(process.env.OUT_H ?? 1080)
 const FPS = 24
-const SECONDS = 10
+export const SECONDS = Number(process.env.SECONDS ?? 24)
 const FRAMES = SECONDS * FPS
+const CRF = process.env.CRF ?? '23'
+const BLUR = process.env.BLUR ?? '1.6'
+const GRAIN = process.env.GRAIN ?? '1'
+
+// How fast the noise field drifts, in noise units per second. This is the one
+// number that decides whether a background reads as "breathing" or as "busy".
+//
+// It is taken from the WebGL spike (spikes/pptx-pinyin/evidence/flow-webgl.html),
+// which runs the same algorithm in real time at `t = T * 0.06` and is the look
+// we are matching. Time here travels round a circle in the last two dimensions
+// of the 4D noise field so the clip loops seamlessly, so the radius has to be
+// derived from the speed and the loop length rather than picked by eye:
+//
+//     circumference 2πR covered in SECONDS  =>  R = speed * SECONDS / 2π
+//
+// The first cut hard-coded R = 0.9 over a 10 s loop — 0.565 units/s, roughly
+// nine times the spike — which is what made the finished clips feel hurried.
+const NOISE_UNITS_PER_SECOND = 0.06
+const LOOP_RADIUS = (NOISE_UNITS_PER_SECOND * SECONDS) / (2 * Math.PI)
 const MAX_MP4 = 2.5 * 1024 * 1024
 const MAX_TOTAL = 12 * 1024 * 1024
 const MAX_POSTER = 100 * 1024
@@ -205,14 +232,14 @@ async function renderTheme(theme, outDir) {
   const ff = spawn(FFMPEG, [
     '-v', 'error', '-y',
     '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${RW}x${RH}`, '-r', String(FPS), '-i', '-',
-    '-vf', `scale=${OUT_W}:${OUT_H}:flags=lanczos,gblur=sigma=6,noise=alls=4:allf=t,format=yuv420p`,
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '26', '-movflags', '+faststart', '-an',
+    '-vf', `scale=${OUT_W}:${OUT_H}:flags=lanczos,gblur=sigma=${BLUR},noise=alls=${GRAIN}:allf=t,format=yuv420p`,
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', CRF, '-movflags', '+faststart', '-an',
     mp4,
   ])
   ff.stderr.on('data', (d) => process.stderr.write(d))
 
   const frame = Buffer.alloc(RW * RH * 3)
-  const R = 0.9 // loop radius in noise space
+  const R = LOOP_RADIUS
   const started = Date.now()
   for (let f = 0; f < FRAMES; f += 1) {
     const th = (f / FRAMES) * Math.PI * 2

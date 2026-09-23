@@ -49,6 +49,60 @@ describe('renderPptx', () => {
     const rels2 = await zip.file('ppt/slides/_rels/slide2.xml.rels')!.async('string')
     expect(rels2).toMatch(/relationships\/image/)
   })
+  it('puts the title slide pinyin above the title, like every lyric line', async () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'V1' }, themeId: 'night' })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const buf = (await pptx.write({ outputType: 'nodebuffer' })) as Buffer
+    const zip = await JSZip.loadAsync(buf)
+    const xml1 = await zip.file('ppt/slides/slide1.xml')!.async('string')
+
+    // one {text, y} per shape on the title slide
+    const shapes = xml1.split('<p:sp>').slice(1).map((chunk) => ({
+      text: [...chunk.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => m[1]).join(''),
+      y: Number(/<a:off [^>]*y="(\d+)"/.exec(chunk)?.[1] ?? NaN),
+    }))
+    const title = shapes.find((s) => s.text === '耶和华是我的牧者')
+    const py = shapes.find((s) => s.text.startsWith('yē hé huá'))
+    expect(title, 'title shape').toBeDefined()
+    expect(py, 'title pinyin shape').toBeDefined()
+    expect(py!.y, `pinyin y=${py!.y} should sit above title y=${title!.y}`).toBeLessThan(title!.y)
+  })
+  it('gives the pinyin the same shadow as the characters it annotates', async () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'V1' }, themeId: 'night' })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const buf = (await pptx.write({ outputType: 'nodebuffer' })) as Buffer
+    const zip = await JSZip.loadAsync(buf)
+    const xml2 = await zip.file('ppt/slides/slide2.xml')!.async('string')
+    // One text box per character holds the pinyin run and the character run, and
+    // the shadow lives on the box — so both rows are lifted off the background.
+    // pptxgenjs silently drops `shadow` from a run's own options.
+    const cells = xml2.split('<p:sp>').slice(1).filter((c) => c.includes('typeface="SimHei"'))
+    expect(cells.length).toBe(14) // 8 + 6 characters
+    for (const cell of cells) {
+      expect(cell).toContain('<a:outerShdw')
+    }
+    const withPinyin = cells.filter((c) => c.includes('typeface="Arial"'))
+    expect(withPinyin.length).toBe(14)
+  })
+  it('writes the same shadow geometry on every shape that carries one', async () => {
+    // pptxgenjs rewrites a shadow's pt values to EMU in place, so handing the
+    // same object to two text boxes silently multiplies the second by 12700.
+    // Every shadow in the deck must therefore read identically.
+    const deck = buildDeck({ songs: [song], flows: { s1: 'V1 C' }, themeId: 'night' })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const buf = (await pptx.write({ outputType: 'nodebuffer' })) as Buffer
+    const zip = await JSZip.loadAsync(buf)
+    const shadows: string[] = []
+    for (const name of Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))) {
+      const xml = await zip.file(name)!.async('string')
+      shadows.push(...(xml.match(/<a:outerShdw[^>]*>/g) ?? []))
+    }
+    expect(shadows.length).toBeGreaterThan(20)
+    expect(new Set(shadows).size).toBe(1)
+    expect(shadows[0]).toContain('blurRad="127000"')
+    expect(shadows[0]).toContain('dist="38100"')
+    expect(shadows[0]).toContain('dir="5400000"')
+  })
   it('embeds one shared, auto-starting, looping, muted video for a dynamic theme', async () => {
     const mp4 = fs.readFileSync(path.resolve(__dirname, 'fixtures/tiny.mp4')).toString('base64')
     const deck = buildDeck({ songs: [song], flows: { s1: 'V1 C' }, themeId: 'flow-deep' })
@@ -82,7 +136,7 @@ describe('renderPptx', () => {
       expect(xml).toContain('mute="1"')
       expect(xml).toContain('showWhenStopped="0"')
       expect(xml).toContain(`<p:spTgt spid="${picId}"/>`)
-      expect(xml).toContain('<p:cTn id="6" dur="10000" fill="hold"/>')
+      expect(xml).toContain('<p:cTn id="6" dur="24000" fill="hold"/>')
       // the timing tree is the last child of <p:sld>
       expect(xml.endsWith('</p:timing></p:sld>')).toBe(true)
     }
