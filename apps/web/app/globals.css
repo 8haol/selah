@@ -6,7 +6,7 @@
      `display` is the Selah wordmark only; `mono` carries keys, page numbers and
      step numerals. */
   --font-sans: "Noto Sans SC", system-ui, -apple-system, "PingFang SC", sans-serif;
-  --font-serif: "Noto Serif SC", "Songti SC", serif;
+  --font-serif: "Songti SC", serif;
   --font-display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 

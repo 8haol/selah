@@ -1,8 +1,9 @@
 'use server'
 
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql, type SQLWrapper } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
+import { cache } from 'react'
 import { getDb } from '@/db/client'
 import { orgModules, wsDecks, wsSongs, wsSetlists, wsSetlistItems, SETLIST_DEFAULTS, type SetlistSettings } from '@/db/schema'
 import { getCurrentContext } from '@/core/context'
@@ -63,11 +64,17 @@ export async function defaultServiceTitle(date = nextSunday()): Promise<string> 
 
 /* ------------------------------------------------------------ org settings */
 
-export async function getDefaultThemeId(): Promise<string> {
+// The shell layout and the page under it both ask for this on every request;
+// `cache` makes that one query instead of two.
+const loadDefaultThemeId = cache(async (): Promise<string> => {
   const { orgId } = await getCurrentContext()
   const db = await getDb()
   const rows = await db.select().from(orgModules).where(and(eq(orgModules.orgId, orgId), eq(orgModules.moduleId, MODULE_ID))).limit(1)
   return safeTheme(rows[0]?.settings?.defaultThemeId as string | undefined, FALLBACK_THEME)
+})
+
+export async function getDefaultThemeId(): Promise<string> {
+  return loadDefaultThemeId()
 }
 
 export async function setDefaultThemeId(themeId: string): Promise<ActionResult> {
@@ -85,27 +92,33 @@ export async function setDefaultThemeId(themeId: string): Promise<ActionResult> 
 
 /* --------------------------------------------------------------- reading */
 
-async function loadSetlist(setlistId: string, orgId: string, defaultThemeId: string): Promise<SetlistView | null> {
+type SetlistRow = typeof wsSetlists.$inferSelect
+type ItemWithSong = { item: typeof wsSetlistItems.$inferSelect; song: typeof wsSongs.$inferSelect | null }
+
+/**
+ * Each query is its own HTTPS round trip to Neon, so the reads below are
+ * issued together rather than one after another: the setlist row, its items
+ * joined to their songs, and the default theme all go out at once.
+ */
+async function itemsWithSongs(setlistIds: string[] | SQLWrapper): Promise<ItemWithSong[]> {
   const db = await getDb()
-  const rows = await db.select().from(wsSetlists).where(and(eq(wsSetlists.id, setlistId), eq(wsSetlists.orgId, orgId))).limit(1)
-  const row = rows[0]
-  if (!row) return null
+  return db
+    .select({ item: wsSetlistItems, song: wsSongs })
+    .from(wsSetlistItems)
+    .leftJoin(wsSongs, eq(wsSongs.id, wsSetlistItems.songId))
+    .where(inArray(wsSetlistItems.setlistId, setlistIds))
+    .orderBy(asc(wsSetlistItems.position))
+}
 
-  const items = await db.select().from(wsSetlistItems).where(eq(wsSetlistItems.setlistId, row.id)).orderBy(asc(wsSetlistItems.position))
-  const songRows = items.length
-    ? await db.select().from(wsSongs).where(inArray(wsSongs.id, items.map((i) => i.songId)))
-    : []
-  const byId = new Map(songRows.map((s) => [s.id, s]))
-
+function toView(row: SetlistRow, items: ItemWithSong[], defaultThemeId: string): SetlistView {
   return {
     id: row.id,
     title: row.title,
     serviceDate: row.serviceDate,
     settings: { ...SETLIST_DEFAULTS, ...row.settings },
     // a song deleted out from under the setlist drops the item rather than the page
-    songs: items.flatMap((i) => {
-      const s = byId.get(i.songId)
-      if (!s) return []
+    songs: items.flatMap(({ item: i, song: s }) => {
+      if (!s || i.setlistId !== row.id) return []
       const song = rowToSong(s)
       return [{
         itemId: i.id,
@@ -119,16 +132,31 @@ async function loadSetlist(setlistId: string, orgId: string, defaultThemeId: str
 
 export async function getSetlist(id: string): Promise<SetlistView | null> {
   const { orgId } = await getCurrentContext()
-  return loadSetlist(id, orgId, await getDefaultThemeId())
+  const db = await getDb()
+  const [rows, items, defaultThemeId] = await Promise.all([
+    db.select().from(wsSetlists).where(and(eq(wsSetlists.id, id), eq(wsSetlists.orgId, orgId))).limit(1),
+    itemsWithSongs([id]),
+    loadDefaultThemeId(),
+  ])
+  return rows[0] ? toView(rows[0], items, defaultThemeId) : null
 }
 
 /** The setlist the sidebar calls 本周 — the most recently touched one. */
-export async function getCurrentSetlist(): Promise<SetlistView | null> {
+const loadCurrentSetlist = cache(async (): Promise<SetlistView | null> => {
   const { orgId } = await getCurrentContext()
   const db = await getDb()
-  const rows = await db.select({ id: wsSetlists.id }).from(wsSetlists).where(eq(wsSetlists.orgId, orgId)).orderBy(desc(wsSetlists.updatedAt)).limit(1)
-  if (!rows[0]) return null
-  return loadSetlist(rows[0].id, orgId, await getDefaultThemeId())
+  const latest = () =>
+    db.select({ id: wsSetlists.id }).from(wsSetlists).where(eq(wsSetlists.orgId, orgId)).orderBy(desc(wsSetlists.updatedAt)).limit(1)
+  const [rows, items, defaultThemeId] = await Promise.all([
+    db.select().from(wsSetlists).where(eq(wsSetlists.orgId, orgId)).orderBy(desc(wsSetlists.updatedAt)).limit(1),
+    itemsWithSongs(latest()),
+    loadDefaultThemeId(),
+  ])
+  return rows[0] ? toView(rows[0], items, defaultThemeId) : null
+})
+
+export async function getCurrentSetlist(): Promise<SetlistView | null> {
+  return loadCurrentSetlist()
 }
 
 /* --------------------------------------------------------------- writing */
@@ -270,8 +298,7 @@ export async function updateSetlistSettings(setlistId: string, patch: z.input<ty
 export async function saveSetlistDeck(setlistId: string): Promise<ActionResult<{ deckId: string; deck: SlideDeck; titles: string[] }>> {
   try {
     const { orgId } = await getCurrentContext()
-    const defaultThemeId = await getDefaultThemeId()
-    const view = await loadSetlist(setlistId, orgId, defaultThemeId)
+    const view = await getSetlist(setlistId)
     if (!view) return { ok: false, message: '歌单不存在' }
     if (view.songs.length === 0) return { ok: false, message: '歌单里还没有歌' }
 
