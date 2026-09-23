@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  /* Type. The `--font-*-sc` variables are injected on <html> by next/font. */
-  --font-sans: var(--font-sans-sc), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  --font-serif: var(--font-serif-sc), "Songti SC", "STSong", "Noto Serif SC", "SimSun", Georgia, serif;
+  /* Type. Fonts load from a Google Fonts CSS2 stylesheet (see app/layout.tsx <head>),
+     which serves unicode-range slices so only the glyphs on the page download. */
+  --font-serif: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 
   /* Paper-and-ink palette. Dark mode is out of scope. */
   --color-paper: #f7f4ee;

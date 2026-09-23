@@ -67,7 +67,7 @@ export function Input({ className, ...p }: InputHTMLAttributes<HTMLInputElement>
     <input
       {...p}
       className={cx(
-        'h-11 w-full rounded-md border border-line bg-card px-3 text-sm text-ink transition-colors placeholder:text-ink-soft/70 hover:border-ink-soft/50 focus:border-accent',
+        'h-11 w-full rounded-md border border-line bg-card px-3 text-sm text-ink transition-colors placeholder:text-ink-soft hover:border-ink-soft/50 focus:border-accent',
         className,
       )}
     />
@@ -79,7 +79,7 @@ export function Textarea({ className, ...p }: TextareaHTMLAttributes<HTMLTextAre
     <textarea
       {...p}
       className={cx(
-        'w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm leading-7 text-ink transition-colors placeholder:text-ink-soft/70 hover:border-ink-soft/50 focus:border-accent',
+        'w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm leading-7 text-ink transition-colors placeholder:text-ink-soft hover:border-ink-soft/50 focus:border-accent',
         className,
       )}
     />
@@ -158,7 +158,7 @@ const TOAST_TONES = {
 export function Toast({ tone = 'success', children }: { tone?: keyof typeof TOAST_TONES; children: ReactNode }) {
   const t = TOAST_TONES[tone]
   return (
-    <div role="status" className={cx('flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm', t.wrap)}>
+    <div role={tone === 'danger' ? 'alert' : 'status'} className={cx('flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm', t.wrap)}>
       <svg viewBox="0 0 20 20" aria-hidden="true" className="mt-0.5 size-4 shrink-0" fill="none">
         <circle cx="10" cy="10" r="8.5" stroke="currentColor" strokeOpacity="0.4" />
         <path d={t.icon} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />

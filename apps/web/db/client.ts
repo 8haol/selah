@@ -5,6 +5,7 @@ import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator'
 import { migrate as migrateNeon } from 'drizzle-orm/neon-http/migrator'
 import type { PgDatabase } from 'drizzle-orm/pg-core'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Db = PgDatabase<any, typeof schema>
 
 const MIGRATIONS = path.join(process.cwd(), 'drizzle')

@@ -1,12 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Noto_Sans_SC, Noto_Serif_SC } from 'next/font/google'
 import './globals.css'
-
-// Latin subset only: the CJK subsets are ~10 MB and would be preloaded on every
-// page. Chinese glyphs fall back to the system serif / sans stacks in globals.css.
-const serif = Noto_Serif_SC({ subsets: ['latin'], weight: ['500', '700'], display: 'swap', variable: '--font-serif-sc' })
-const sans = Noto_Sans_SC({ subsets: ['latin'], weight: ['400', '500', '700'], display: 'swap', variable: '--font-sans-sc' })
 
 export const metadata: Metadata = {
   title: { default: 'Selah', template: '%s · Selah' },
@@ -15,7 +9,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN" className={`${serif.variable} ${sans.variable}`}>
+    <html lang="zh-CN">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+        />
+      </head>
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <header className="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur">
           <div className="mx-auto flex h-16 max-w-[1120px] items-center gap-8 px-6">

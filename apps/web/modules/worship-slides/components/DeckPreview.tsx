@@ -84,6 +84,8 @@ export function DeckPreview({ deck }: { deck: SlideDeck }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target && (stripRef.current?.contains(target) || target.closest('input, textarea'))) return
       if (e.key === 'ArrowRight') setWanted((x) => Math.min(n - 1, x + 1))
       if (e.key === 'ArrowLeft') setWanted((x) => Math.max(0, x - 1))
     }
@@ -116,6 +118,8 @@ export function DeckPreview({ deck }: { deck: SlideDeck }) {
         className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]"
         onKeyDown={(e) => {
           if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+          e.preventDefault()
+          e.stopPropagation()
           const next = Math.max(0, Math.min(n - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))
           setWanted(next)
           stripRef.current?.querySelectorAll('button')[next]?.focus()

@@ -66,7 +66,7 @@ export function GeneratePanel({ songs, initialSongIds }: { songs: SongRow[]; ini
   }
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-start lg:gap-12">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[400px_1fr] lg:items-start lg:gap-12">
       <div className="space-y-10">
         <Step n={1} title="选歌" hint="按敬拜顺序">
           <div className="space-y-4">
@@ -101,7 +101,12 @@ export function GeneratePanel({ songs, initialSongIds }: { songs: SongRow[]; ini
                         </div>
                       </div>
                       <div className="mt-3">
-                        <FlowInput value={flows[id] ?? s.defaultFlow} onChange={(v) => setFlows({ ...flows, [id]: v })} sections={s.sections} />
+                        <FlowInput
+                          value={flows[id] ?? s.defaultFlow}
+                          onChange={(v) => setFlows({ ...flows, [id]: v })}
+                          sections={s.sections}
+                          ariaLabel={`${s.title} 的 flow`}
+                        />
                       </div>
                     </Card>
                   )

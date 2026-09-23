@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { expandFlow, FlowError, type SongSection } from '@selah/slide-engine'
 import { Badge, Input } from './ui'
 
-export function FlowInput({ value, onChange, sections, placeholder }: { value: string; onChange: (v: string) => void; sections: SongSection[]; placeholder?: string }) {
+export function FlowInput({ value, onChange, sections, placeholder, ariaLabel }: { value: string; onChange: (v: string) => void; sections: SongSection[]; placeholder?: string; ariaLabel?: string }) {
   const result = useMemo(() => {
     if (!value.trim()) return { ids: sections.map((s) => s.id), error: null as string | null }
     try {
@@ -19,6 +19,7 @@ export function FlowInput({ value, onChange, sections, placeholder }: { value: s
         placeholder={placeholder ?? '例如 V1 C V2 C B C，或 VCVCBC'}
         spellCheck={false}
         aria-invalid={result.error ? true : undefined}
+        aria-label={ariaLabel}
         className={`font-mono tracking-wide ${result.error ? 'border-danger' : ''}`}
       />
       <div className="mt-2 min-h-7 text-xs">
