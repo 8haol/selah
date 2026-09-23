@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <header className="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur">
-          <div className="mx-auto flex h-16 max-w-[1120px] items-center gap-8 px-6">
+          <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-8 px-6">
             <Link href="/" className="rounded-sm font-serif text-xl font-bold tracking-[0.18em] text-ink">
               Selah
             </Link>
@@ -34,9 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1120px] flex-1 px-6 py-10">{children}</main>
+        <main className="mx-auto w-full max-w-[1320px] flex-1 px-6 py-10">{children}</main>
         <footer className="mt-16 border-t border-line">
-          <div className="mx-auto max-w-[1120px] px-6 py-8 text-xs text-ink-soft">
+          <div className="mx-auto max-w-[1320px] px-6 py-8 text-xs text-ink-soft">
             Selah · CCIL 国语堂敬拜队 · 2026
           </div>
         </footer>

@@ -68,8 +68,12 @@ export function GeneratePanel({ songs, initialSongIds }: { songs: SongRow[]; ini
     })
   }
 
+  // minmax(0,1fr) rather than a bare 1fr: a grid track defaults to a minimum of
+  // auto, so the preview column would be stretched to the thumbnail strip's
+  // min-content width — one 128px tile per slide — and push the page sideways
+  // instead of letting the strip scroll itself. Same shape as the deck page.
   return (
-    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[400px_1fr] lg:items-start lg:gap-12">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[380px_minmax(0,1fr)] lg:items-start lg:gap-12">
       <div className="space-y-10">
         <Step n={1} title="选歌" hint="按敬拜顺序">
           <div className="space-y-4">
