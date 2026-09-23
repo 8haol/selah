@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, jsonb, integer, boolean, date, primaryKey, index } from 'drizzle-orm/pg-core'
-import type { SongSection, SlideDeck } from '@selah/slide-engine'
+import type { LineSpacing, OutlineWeight, SongSection, SlideDeck, TextAnchor } from '@selah/slide-engine'
 
 export const organizations = pgTable('organizations', {
   id: text('id').primaryKey(),
@@ -38,7 +38,7 @@ export const wsSongs = pgTable('ws_songs', {
 /** How a whole service projects. One row per setlist; see SETLIST_DEFAULTS. */
 export interface SetlistSettings {
   /** 每页行数 */
-  linesPerSlide: 1 | 2 | 4
+  linesPerSlide: 1 | 2 | 3 | 4
   /** 字号：大字 */
   bigText: boolean
   /** 显示拼音 */
@@ -47,10 +47,17 @@ export interface SetlistSettings {
   titleSlides: boolean
   /** 歌与歌之间空白页 */
   blankBetween: boolean
+  /** 行间距 */
+  lineSpacing: LineSpacing
+  /** 字体描边 */
+  outline: OutlineWeight
+  /** 文字位置: 固定首行 or 每页居中 */
+  anchor: TextAnchor
 }
 
 export const SETLIST_DEFAULTS: SetlistSettings = {
   linesPerSlide: 2, bigText: false, pinyin: true, titleSlides: true, blankBetween: true,
+  lineSpacing: 'normal', outline: 'none', anchor: 'top',
 }
 
 /** `service` is a Sunday — the newest one is 本周. `draft` is a 制作: any other deck, named freely. */

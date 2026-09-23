@@ -8,6 +8,7 @@ import { getDb } from '@/db/client'
 import { orgModules, wsDecks, wsSongs, wsSetlists, wsSetlistItems, SETLIST_DEFAULTS, type SetlistKind, type SetlistSettings } from '@/db/schema'
 import { getCurrentContext } from '@/core/context'
 import { rowToSong } from './song-row'
+import { deckDisplay } from './setlist-settings'
 import { BUILTIN_THEMES, buildDeck, parseFlow, pruneFlow, type SlideDeck, type Song } from '@selah/slide-engine'
 import type { ActionResult } from './actions'
 
@@ -345,11 +346,14 @@ export async function setSetlistTheme(setlistId: string, themeId: string): Promi
 }
 
 const settingsPatch = z.object({
-  linesPerSlide: z.union([z.literal(1), z.literal(2), z.literal(4)]).optional(),
+  linesPerSlide: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   bigText: z.boolean().optional(),
   pinyin: z.boolean().optional(),
   titleSlides: z.boolean().optional(),
   blankBetween: z.boolean().optional(),
+  lineSpacing: z.enum(['tight', 'normal', 'loose']).optional(),
+  outline: z.enum(['none', 'thin', 'thick']).optional(),
+  anchor: z.enum(['top', 'center']).optional(),
 })
 
 export async function updateSetlistSettings(setlistId: string, patch: z.input<typeof settingsPatch>): Promise<ActionResult> {
@@ -385,11 +389,7 @@ export async function saveSetlistDeck(setlistId: string): Promise<ActionResult<{
       flows: Object.fromEntries(view.songs.map((x) => [x.song.id, x.flow.join(' ')])),
       themes: Object.fromEntries(view.songs.map((x) => [x.song.id, x.themeId])),
       themeId: view.songs[0]!.themeId,
-      linesPerSlide: s.linesPerSlide,
-      bigText: s.bigText,
-      pinyin: s.pinyin,
-      titleSlides: s.titleSlides,
-      blankBetweenSongs: s.blankBetween,
+      ...deckDisplay(s),
     })
 
     const db = await getDb()

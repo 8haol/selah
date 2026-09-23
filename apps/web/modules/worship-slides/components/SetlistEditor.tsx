@@ -18,6 +18,7 @@ import { SlideView, posterSrc, slideLabel, type CharPick } from './SlideView'
 import { PinyinPicker } from './PinyinPicker'
 import { FlowPanel, LyricsPanel, SettingsPanel, ThemePanel } from './SetlistPanels'
 import { typeName } from '../section-name'
+import { deckDisplay } from '../setlist-settings'
 import { SetlistTitle } from './SetlistTitle'
 import { DeleteDraftButton } from './DeleteDraftButton'
 import { AddSongModal, ExportModal, type ExportRow } from './SetlistModals'
@@ -80,11 +81,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
       flows: Object.fromEntries(songs.map((s) => [s.song.id, s.flow.join(' ')])),
       themes: Object.fromEntries(songs.map((s) => [s.song.id, s.themeId])),
       themeId: songs[0]!.themeId,
-      linesPerSlide: settings.linesPerSlide,
-      bigText: settings.bigText,
-      pinyin: settings.pinyin,
-      titleSlides: settings.titleSlides,
-      blankBetweenSongs: settings.blankBetween,
+      ...deckDisplay(settings),
     })
   }, [songs, settings])
 

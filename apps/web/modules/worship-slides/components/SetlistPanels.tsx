@@ -238,7 +238,22 @@ export function ThemePanel({
 const LPP = [
   { value: 1 as const, label: '1 行' },
   { value: 2 as const, label: '2 行' },
+  { value: 3 as const, label: '3 行' },
   { value: 4 as const, label: '4 行' },
+]
+const SPACING = [
+  { value: 'tight' as const, label: '紧凑' },
+  { value: 'normal' as const, label: '标准' },
+  { value: 'loose' as const, label: '宽松' },
+]
+const OUTLINE = [
+  { value: 'none' as const, label: '无' },
+  { value: 'thin' as const, label: '细' },
+  { value: 'thick' as const, label: '粗' },
+]
+const ANCHOR = [
+  { value: 'top' as const, label: '固定首行' },
+  { value: 'center' as const, label: '每页居中' },
 ]
 const SIZE = [
   { value: false, label: '标准' },
@@ -261,6 +276,21 @@ export function SettingsPanel({
       <div className="flex flex-col gap-2.5">
         <span className="text-[13px] text-ink-4">字号</span>
         <Segmented ariaLabel="字号" size="sm" grow options={SIZE} value={settings.bigText} onChange={(v) => onChange({ bigText: v })} />
+      </div>
+      <div className="flex flex-col gap-2.5">
+        <span className="text-[13px] text-ink-4">行间距</span>
+        <Segmented ariaLabel="行间距" size="sm" grow options={SPACING} value={settings.lineSpacing} onChange={(v) => onChange({ lineSpacing: v })} />
+      </div>
+      <div className="flex flex-col gap-2.5">
+        <span className="text-[13px] text-ink-4">字体描边</span>
+        <Segmented ariaLabel="字体描边" size="sm" grow options={OUTLINE} value={settings.outline} onChange={(v) => onChange({ outline: v })} />
+      </div>
+      <div className="flex flex-col gap-2.5">
+        <span className="text-[13px] text-ink-4">文字位置</span>
+        <Segmented ariaLabel="文字位置" size="sm" grow options={ANCHOR} value={settings.anchor} onChange={(v) => onChange({ anchor: v })} />
+        <span className="text-[12.5px] leading-[1.5] text-ink-5">
+          {settings.anchor === 'top' ? '同一首歌每页第一行在同一高度，翻页时文字不上下跳' : '每页各自居中，行少的页也在正中间'}
+        </span>
       </div>
       <div className="h-px bg-line" />
       <Toggle label="显示拼音" checked={settings.pinyin} onChange={(v) => onChange({ pinyin: v })} />

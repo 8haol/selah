@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { cx } from '@/core/ui'
-import { layoutSlide, layoutTitle, CONTENT_X_PT, CONTENT_W_PT, SLIDE_W_PT, SLIDE_H_PT, type Slide, type Theme } from '@selah/slide-engine'
+import {
+  layoutMeta, layoutSlide, layoutTitle, outlinePt, BADGE, CONTENT_X_PT, CONTENT_W_PT, META_LINE, SLIDE_W_PT, SLIDE_H_PT, type Slide, type Theme,
+} from '@selah/slide-engine'
 
 const PX = 1920 / SLIDE_W_PT          // 2.6667 px per pt
 const px = (pt: number) => pt * PX
@@ -14,6 +16,12 @@ function shadow(theme: Theme): string | undefined {
   const { color, opacity } = theme.shadow
   const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16)).join(',')
   return `0 4px 18px rgba(${rgb},${opacity}), 0 1px 2px rgba(${rgb},${opacity * 0.6})`
+}
+
+/** 字体描边, drawn behind the fill so it thickens the outside of each stroke like PowerPoint's. */
+function stroke(theme: Theme, sizePt: number): { WebkitTextStroke?: string; paintOrder?: string } {
+  const o = outlinePt(theme, sizePt)
+  return o ? { WebkitTextStroke: `${px(o.widthPt)}px ${o.color}`, paintOrder: 'stroke fill' } : {}
 }
 
 /** The still frame for a theme: the JPEG itself, or a video theme's poster. */
@@ -45,7 +53,8 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
     ro.observe(el); return () => ro.disconnect()
   }, [])
   const sh = shadow(theme)
-  const lay = slide.kind === 'lyrics' ? layoutSlide(slide.lines, theme) : null
+  const lay = slide.kind === 'lyrics' ? layoutSlide(slide.lines, theme, slide.fit) : null
+  const meta = slide.kind === 'title' && slide.meta ? layoutMeta(slide.meta, theme) : null
   const title = slide.kind === 'title' && slide.titleLine ? layoutTitle(slide.titleLine, theme) : null
   const video = !isStatic && theme.background.kind === 'video' ? theme.background : null
   const pickable = (line: number, at: number | undefined, zh: string) => {
@@ -71,8 +80,8 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
               <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                 {title.cells.map((cell, ci) => (
                   <div key={ci} {...pickable(-1, cell.at, cell.zh)} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < title.cells.length - 1 ? px(0.3 * title.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(title.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap', marginBottom: px(4) }}>{cell.py}</span>}
-                    <span style={{ fontFamily: FONT_TITLE, fontSize: px(title.zhPt), lineHeight: 1.1, fontWeight: 700, color: theme.colors.title, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
+                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(title.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap', marginBottom: px(4), ...stroke(theme, title.pyPt) }}>{cell.py}</span>}
+                    <span style={{ fontFamily: FONT_TITLE, fontSize: px(title.zhPt), lineHeight: 1.1, fontWeight: 700, color: theme.colors.title, textShadow: sh, whiteSpace: 'nowrap', ...stroke(theme, title.zhPt) }}>{cell.zh}</span>
                   </div>
                 ))}
               </div>
@@ -83,20 +92,24 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
               </>
             )}
             <div style={{ width: 220, height: 3, borderRadius: 2, background: theme.colors.rule, opacity: 0.9, marginTop: px(16) }} />
-            {slide.meta && <div style={{ fontFamily: FONT_PY, fontSize: px(theme.sizes.meta), letterSpacing: '.14em', textTransform: 'uppercase', marginTop: px(20), opacity: 0.85, color: theme.colors.meta }}>{slide.meta}</div>}
+            {meta && (
+              <div style={{ fontFamily: FONT_PY, fontSize: px(meta.pt), lineHeight: META_LINE, letterSpacing: '.22em', textAlign: 'center', whiteSpace: 'nowrap', marginTop: px(20), opacity: 0.85, color: theme.colors.meta }}>
+                {meta.lines.map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            )}
           </div>
         )}
         {slide.kind === 'lyrics' && lay && (
           <>
             {slide.sectionLabel && (
-              <div style={{ position: 'absolute', top: px(27), left: px(36), height: px(26), display: 'flex', alignItems: 'center', fontFamily: FONT_PY, fontSize: px(theme.sizes.badge), letterSpacing: '.22em', padding: `0 ${px(8)}px`, border: `1.5px solid ${theme.colors.badge}55`, background: `${theme.colors.badge}1f`, borderRadius: 999, color: theme.colors.badge }}>{slide.sectionLabel}</div>
+              <div style={{ position: 'absolute', top: px(BADGE.topPt), left: px(BADGE.leftPt), height: px(BADGE.heightPt), display: 'flex', alignItems: 'center', fontFamily: FONT_PY, fontSize: px(theme.sizes.badge), letterSpacing: `${BADGE.tracking}em`, padding: `0 ${px(BADGE.padPt)}px`, border: `1.5px solid ${theme.colors.badge}55`, background: `${theme.colors.badge}1f`, borderRadius: 999, color: theme.colors.badge }}>{slide.sectionLabel}</div>
             )}
             {lay.rows.map((row, ri) => (
               <div key={ri} style={{ position: 'absolute', display: 'flex', left: px(CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2), top: px(row.topPt ?? lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)), height: px(row.heightPt ?? lay.rowHeightPt) }}>
                 {row.cells.map((cell, ci) => (
                   <div key={ci} {...pickable(row.line ?? 0, cell.at, cell.zh)} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < row.cells.length - 1 ? px(0.5 * lay.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center' }}>
-                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.py}</span>}
-                    <span style={{ fontFamily: FONT_ZH, fontSize: px(lay.zhPt), lineHeight: 1.05, fontWeight: 700, color: theme.colors.zh, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
+                    {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap', ...stroke(theme, lay.pyPt) }}>{cell.py}</span>}
+                    <span style={{ fontFamily: FONT_ZH, fontSize: px(lay.zhPt), lineHeight: 1.05, fontWeight: 700, color: theme.colors.zh, textShadow: sh, whiteSpace: 'nowrap', ...stroke(theme, lay.zhPt) }}>{cell.zh}</span>
                   </div>
                 ))}
               </div>

@@ -8,6 +8,7 @@ import { StartServiceButton } from '@/modules/worship-slides/components/StartSer
 import { AddToServiceButton } from '@/modules/worship-slides/components/AddToServiceButton'
 import { DeleteDeckButton } from '@/modules/worship-slides/components/DeleteDeckButton'
 import { typeName } from '@/modules/worship-slides/section-name'
+import { deckDisplay } from '@/modules/worship-slides/setlist-settings'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: '工作台' }
@@ -63,9 +64,7 @@ export default async function Dashboard() {
         songs: setlist.songs.map((x) => x.song),
         flows: Object.fromEntries(setlist.songs.map((x) => [x.song.id, x.flow.join(' ')])),
         themeId: setlist.songs[0]!.themeId,
-        linesPerSlide: setlist.settings.linesPerSlide,
-        titleSlides: setlist.settings.titleSlides,
-        blankBetweenSongs: setlist.settings.blankBetween,
+        ...deckDisplay(setlist.settings),
       }).slides.length
     : 0
   const date = serviceDateLabel(setlist?.serviceDate ?? upcoming)
