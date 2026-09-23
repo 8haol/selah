@@ -145,8 +145,10 @@ const modes = {
 
   // 40 soft discs drifting upward on looped phases, additive over a flat gradient.
   bokeh(theme) {
-    const top = hexToRgb('#0B1020')
-    const bottom = hexToRgb('#1A1F45')
+    // gradient wired to the theme's own ramp (dark stop and mid stop) rather
+    // than duplicated literals, so the palette entry is no longer dead.
+    const top = hexToRgb(theme.palette[0])
+    const bottom = hexToRgb(theme.palette[2])
     const tints = ['#FFD27A', '#FFB4A2', '#FFFFFF'].map(hexToRgb)
     let seed = 20260923
     const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296)
@@ -157,12 +159,13 @@ const modes = {
         y0: random(),
         // radius 30–140 px of the 1280-wide output, expressed in u units
         r: (30 + random() * 110) / OUT_W,
-        speed: 0.10 + random() * 0.35,
+        // whole number of screen heights of drift per 10 s loop, so each
+        // disc's phase returns exactly to y0 at t = 1 (seamless loop)
+        speed: 1 + Math.floor(random() * 3),
         tint: tints[i % tints.length],
         op: 0.12 + random() * 0.18,
       })
     }
-    void theme
     return (u, v, cz, cw, th) => {
       const t = th / (Math.PI * 2)
       const g = v
