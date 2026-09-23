@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+    branches: [main, 'feat/**']
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r typecheck
+
+      - run: pnpm -r test
+
+      - run: pnpm --filter @selah/web lint
+
+      # No DATABASE_URL: the build takes the PGlite path. No network: the Google
+      # Fonts stylesheet is a client-side <link>, never fetched at build time.
+      - run: pnpm --filter @selah/web build
