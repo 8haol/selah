@@ -1,30 +1,35 @@
 // Procedural dynamic (video) backgrounds for the five 动态 themes.
 //
-// Generalised from `spikes/pptx-pinyin/flow-bg.mjs`: every mode is a seamless
-// 10 s loop because time travels round a circle in the last two dimensions of a
-// 4D value-noise field (or, for `bokeh`, because every disc's phase wraps). We
-// render small (384×216) on the CPU and let ffmpeg upscale with lanczos + a
-// soft blur + film grain — these are atmospheric backdrops, not sharp footage.
+// Every mode is a seamless loop: time travels round a circle in the last two
+// dimensions of a 4D simplex-noise field (see lib/procedural.mjs), and anything
+// that moves linearly (bokeh drift, twinkle) moves a whole number of cycles
+// per loop. The first cut used 4D *value* noise, whose square lattice showed
+// up as blocky horizontal streaks once the clip was upscaled; gradient noise
+// has no lattice to show.
 //
-// A radial scrim is baked in (0.72 at the centre of the text zone rising to 1.0
-// at its edge) so a moving highlight can never drift unfiltered behind lyrics.
+// Frames are shaded in linear light at 640x360 on worker threads (one per
+// core) and ffmpeg upscales to 1080p with lanczos, a light blur and film grain.
+// The sampler's highest frequency is well under the 360-row Nyquist limit, so
+// the upscale interpolates a band-limited signal rather than inventing detail.
 //
-// The render is 640x360 and ffmpeg upscales to 1080p with lanczos. That is not
-// a shortcut: the sampler's highest-frequency term is the ribbon layer at ~7.5
-// cycles over the height, so 360 rows already sit well above its Nyquist rate
-// and the upscale is interpolating a band-limited signal rather than inventing
-// detail. What used to cost clarity was the finish, not the render size — a
-// 384x216 source stretched 3.3x through `gblur=sigma=6` with heavy grain at
-// crf 26. Light blur and a lower crf are what make the clip read as sharp.
+// A radial scrim is baked in (≈0.7 at the centre of the text zone rising to 1.0
+// at its edge) so a moving highlight never drifts unfiltered behind lyrics.
+//
+// How fast the field drifts decides whether a background reads as "breathing"
+// or as "busy". The loop radius comes from the speed and the loop length:
+// circumference 2πR covered in SECONDS  =>  R = speed * SECONDS / 2π.
 //
 // usage: node scripts/build-videos.mjs [id ...]      (default: all five)
+//        OUT_DIR=/tmp/x SECONDS=6 node scripts/build-videos.mjs bokeh   (preview, no manifest)
 import { spawn } from 'node:child_process'
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads'
+import { fileURLToPath } from 'node:url'
+import os from 'node:os'
 import fs from 'node:fs'
 import path from 'node:path'
 import sharp from 'sharp'
-import { measureBackground, updateManifest, THEMES_DIR } from './measure.mjs'
+import { makeNoise, rng, lin, mixc, ramp, clamp01, smoothstep, gauss, scrim } from './lib/procedural.mjs'
 
-const FFMPEG = process.env.FFMPEG ?? '/opt/homebrew/bin/ffmpeg'
 const RW = Number(process.env.RW ?? 640)
 const RH = Number(process.env.RH ?? 360)
 const OUT_W = Number(process.env.OUT_W ?? 1920)
@@ -32,287 +37,285 @@ const OUT_H = Number(process.env.OUT_H ?? 1080)
 const FPS = 24
 export const SECONDS = Number(process.env.SECONDS ?? 24)
 const FRAMES = SECONDS * FPS
-const CRF = process.env.CRF ?? '23'
-const BLUR = process.env.BLUR ?? '1.6'
-const GRAIN = process.env.GRAIN ?? '1'
-
-// How fast the noise field drifts, in noise units per second. This is the one
-// number that decides whether a background reads as "breathing" or as "busy".
-//
-// It is taken from the WebGL spike (spikes/pptx-pinyin/evidence/flow-webgl.html),
-// which runs the same algorithm in real time at `t = T * 0.06` and is the look
-// we are matching. Time here travels round a circle in the last two dimensions
-// of the 4D noise field so the clip loops seamlessly, so the radius has to be
-// derived from the speed and the loop length rather than picked by eye:
-//
-//     circumference 2πR covered in SECONDS  =>  R = speed * SECONDS / 2π
-//
-// The first cut hard-coded R = 0.9 over a 10 s loop — 0.565 units/s, roughly
-// nine times the spike — which is what made the finished clips feel hurried.
-const NOISE_UNITS_PER_SECOND = 0.06
-const LOOP_RADIUS = (NOISE_UNITS_PER_SECOND * SECONDS) / (2 * Math.PI)
+const CRF = '23'
+const BLUR = process.env.BLUR ?? '1.4'
+const GRAIN = process.env.GRAIN ?? '2'
 const MAX_MP4 = 2.5 * 1024 * 1024
 const MAX_TOTAL = 12 * 1024 * 1024
 const MAX_POSTER = 100 * 1024
+const A = 16 / 9
 
-const hexToRgb = (h) => [0, 2, 4].map((i) => parseInt(h.slice(1 + i, 3 + i), 16))
-
-// --- 4D value noise (seamless in the z/w plane) -----------------------------
-function hash4(x, y, z, w) {
-  let h = (x * 374761393 + y * 668265263 + z * 2147483647 + w * 1597334677) | 0
-  h = (h ^ (h >>> 13)) * 1274126177
-  h = h ^ (h >>> 16)
-  return (h >>> 0) / 4294967296
-}
-const fade = (t) => t * t * (3 - 2 * t)
-function noise4(x, y, z, w) {
-  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), wi = Math.floor(w)
-  const xf = fade(x - xi), yf = fade(y - yi), zf = fade(z - zi), wf = fade(w - wi)
-  let acc = 0
-  for (let dw = 0; dw <= 1; dw += 1) {
-    const ww = dw ? wf : 1 - wf
-    for (let dz = 0; dz <= 1; dz += 1) {
-      const wz = dz ? zf : 1 - zf
-      for (let dy = 0; dy <= 1; dy += 1) {
-        const wy = dy ? yf : 1 - yf
-        for (let dx = 0; dx <= 1; dx += 1) {
-          const wx = dx ? xf : 1 - xf
-          acc += hash4(xi + dx, yi + dy, zi + dz, wi + dw) * wx * wy * wz * ww
-        }
-      }
-    }
-  }
-  return acc
-}
-function fbm(x, y, z, w, oct = 4) {
-  let a = 0.5, f = 1, s = 0, n = 0
-  for (let i = 0; i < oct; i += 1) { s += a * noise4(x * f, y * f, z * f, w * f); n += a; a *= 0.5; f *= 2.03 }
-  return s / n
-}
-
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v)
-
-/** 5 stops, dark → highlight. */
-const rampOf = (palette) => palette.map(hexToRgb)
-function mapColor(ramp, v) {
-  const t = clamp01(v) * 4
-  const i = Math.min(3, Math.floor(t))
-  const f = t - i
-  const a = ramp[i], b = ramp[i + 1]
-  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]
-}
-
-/** Baked scrim: 0.72 in the middle of the text zone, 1.0 at its edge and beyond. */
-const TEXT_ZONE_R = 0.95
-function scrimAt(u, v) {
-  const dx = (u - 0.5) * (16 / 9)
-  const dy = v - 0.54
-  const r = Math.min(1, Math.hypot(dx, dy) / TEXT_ZONE_R)
-  return 0.72 + 0.28 * fade(r)
-}
+const add = (c, col, k) => { c[0] += col[0] * k; c[1] += col[1] * k; c[2] += col[2] * k; return c }
 
 // --- modes ------------------------------------------------------------------
-// Each mode returns a `(u, v, cz, cw, th) => [r, g, b]` sampler for one theme.
+// Each mode returns `(u, v, cz, cw, th) => [r, g, b]` in linear light, where
+// (cz, cw) is the point on the time circle and th the loop phase in radians.
+// `speed` is noise units per second; the circle radius follows from it.
 
 const modes = {
-  // The spike algorithm: domain-warped, horizontally stretched fbm with bright ribbons.
+  // Silk: a sheet of broad ribbons — contour bands of a slowly warped height
+  // field — with a narrow sheen along each fold, the way light catches satin.
   flow(theme) {
-    const ramp = rampOf(theme.palette)
+    const { fbm4 } = makeNoise(theme.seed)
+    const tone = ramp(theme.palette)
+    const hi = mixc(lin(theme.palette[3]), lin(theme.palette[4]), 0.5)
     return (u, v, cz, cw) => {
-      const qx = fbm(u * 1.6 + 3.1, v * 2.2, cz, cw, 3)
-      const qy = fbm(u * 1.6 - 1.7, v * 2.2 + 5.3, cz + 2.1, cw - 1.3, 3)
-      const nx = u * 1.1 + (qx - 0.5) * 1.4
-      const ny = v * 3.6 + (qy - 0.5) * 1.1
-      let n = fbm(nx, ny, cz * 1.3 + 7.7, cw * 1.3 + 4.2, 4)
-      n = (n - 0.5) * 1.7 + 0.5
-      const sx = u * 0.7 + (qx - 0.5) * 0.9 + 11.3
-      const sy = v * 7.5 + (qy - 0.5) * 2.4 + 2.9
-      const rib = fbm(sx, sy, cz * 0.9 - 3.3, cw * 0.9 + 6.1, 3)
-      const streak = Math.max(0, (rib - 0.52) / 0.48) ** 2.2 * 0.9
-      const band = Math.exp(-(((v - 0.58) / 0.45) ** 2))
-      const glow = Math.min(1, Math.max(0, n) ** 1.5 * (0.5 + 0.5 * band) * 0.85 + streak * band)
-      return mapColor(ramp, glow)
+      const x = u * A, y = v
+      const w1 = fbm4(x * 0.55 + 3.1, y * 0.7, cz, cw, 3)
+      const w2 = fbm4(x * 0.9 - 1.7, y * 1.1 + 5.3, cz * 1.3 + 2.1, cw * 1.3 - 1.3, 3)
+      // a gently tilted sheet whose height is bent by the two warps
+      const h = y * 1.35 - x * 0.18 + (w1 - 0.5) * 1.3 + (w2 - 0.5) * 0.35
+      const phase = h * Math.PI * 2 * 2.4
+      const fold = 0.5 + 0.5 * Math.sin(phase)
+      const body = fold ** 2.2
+      const sheen = Math.max(0, Math.sin(phase + 0.7)) ** 24
+      // the fabric crosses the lower-middle of the frame and fades out at the top
+      const band = gauss(y - (0.7 + 0.1 * (w1 - 0.5)), 0.3)
+      const col = [...tone(clamp01((0.1 + body * 0.48) * band))]
+      add(col, hi, sheen * band * band * 0.1)
+      return col
     }
   },
 
-  // Two layers of thresholded fbm cloud drifting sideways at different speeds,
-  // over a night gradient, with a faint moon bloom top-right.
+  // Two decks of cloud drifting at different speeds, lit from a moon at the
+  // top right: brightness comes from how much thinner the cloud is toward the
+  // light, which gives lit rims and shadowed bellies instead of flat puffs.
   clouds(theme) {
-    const ramp = rampOf(theme.palette)
-    const puff = (n) => Math.max(0, (n - 0.42) / 0.58) ** 1.4
+    const { fbm4 } = makeNoise(theme.seed)
+    const tone = ramp(theme.palette)
+    const moonC = lin('#E4EAFF')
+    const mx = 0.8 * A, my = 0.17
+    const density = (x, y, cz, cw, th, k) => {
+      const drift = k === 0 ? 0.3 * Math.sin(th) : -0.2 * Math.sin(th)
+      const f = k === 0 ? 0.95 : 1.7
+      const n = fbm4(x * f * 0.8 + drift + k * 9.1, y * f * 2.6 + k * 4.4, cz * (1 + k * 0.2), cw * (1 + k * 0.2) + k * 3, 4)
+      return Math.max(0, (n - 0.44) / 0.56)
+    }
     return (u, v, cz, cw, th) => {
-      const d1 = u * 2.6 + 0.30 * Math.sin(th)
-      const d2 = u * 4.4 - 0.18 * Math.sin(th) + 9.1
-      const c1 = puff(fbm(d1, v * 2.6, cz, cw, 4))
-      const c2 = puff(fbm(d2, v * 4.4 + 4.4, cz * 1.2 + 3.3, cw * 1.2 - 2.7, 4))
-      // soft-light style combine: the thin high layer lifts the thick low one
-      const cloud = clamp01(c1 + c2 * (1 - c1) * 0.8)
-      const moon = Math.exp(-((Math.hypot((u - 0.80) * (16 / 9), v - 0.17) / 0.34) ** 2)) * 0.42
-      const base = 0.10 + 0.10 * (1 - v)
-      return mapColor(ramp, base + cloud * 0.62 + moon)
+      const x = u * A, y = v
+      const ldx = mx - x, ldy = my - y
+      const ll = Math.hypot(ldx, ldy) || 1
+      const ex = (ldx / ll) * 0.05, ey = (ldy / ll) * 0.05
+      const moonD = Math.hypot(x - mx, y - my)
+      const col = [...tone(0.08 + 0.1 * (1 - v))]
+      add(col, moonC, gauss(moonD, 0.3) * 0.07)
+      let cover = 0
+      for (let k = 1; k >= 0; k -= 1) {
+        const d = density(x, y, cz, cw, th, k)
+        if (d <= 0) continue
+        const lit = clamp01((d - density(x + ex, y + ey, cz, cw, th, k)) * 3 + 0.35)
+        const a = clamp01(d * 1.8) * (k === 0 ? 0.9 : 0.55)
+        const glow = gauss(moonD, 0.55)
+        const c = tone(clamp01(0.22 + lit * (0.3 + 0.5 * glow)))
+        for (let i = 0; i < 3; i += 1) col[i] = col[i] * (1 - a) + c[i] * a
+        cover = Math.max(cover, a)
+      }
+      // the moon glows through thin cloud rather than being cut out by it
+      add(col, moonC, gauss(moonD, 0.045) * 0.55 * (1 - cover * 0.5) + gauss(moonD, 0.16) * 0.06)
+      return col
     }
   },
 
-  // Angular fbm around an off-canvas pivot → god-rays that sway as the loop turns.
+  // Angular noise round an off-canvas pivot → god-rays that sway and breathe,
+  // with haze between them.
   rays(theme) {
-    const ramp = rampOf(theme.palette)
-    const px = 0.55
-    const py = -0.3
+    const { fbm4, fbm2 } = makeNoise(theme.seed)
+    const tone = ramp(theme.palette)
+    const warm = lin(theme.palette[3])
+    const px = 0.55 * A, py = -0.35
     return (u, v, cz, cw) => {
-      const dx = (u - px) * (16 / 9)
-      const dy = v - py
-      const angle = Math.atan2(dy, dx)
-      const r = Math.min(1, Math.hypot(dx, dy) / 1.65)
-      const n = fbm(angle * 6, r * 0.5, cz, cw, 4)
-      const beam = Math.max(0, (n - 0.45) / 0.55) ** 1.6 * (1 - r) ** 1.5
-      const base = 0.09 + 0.09 * (1 - v)
-      return mapColor(ramp, base + beam * 1.25)
+      const x = u * A, y = v
+      const dx = x - px, dy = y - py
+      const ang = Math.atan2(dx, dy)
+      const r = Math.hypot(dx, dy)
+      const n = fbm4(ang * 5, r * 0.35, cz, cw, 4)
+      const beam = smoothstep(0.45, 0.8, n) * gauss(ang, 0.62) * Math.exp(-r * 0.75)
+      const haze = fbm2(x * 1.4, y * 2, 4)
+      const col = [...tone(0.08 + 0.1 * (1 - v) + haze * 0.05)]
+      add(col, warm, beam * (0.55 + 0.6 * haze) * 0.22)
+      add(col, warm, gauss(Math.hypot(x - px, y + 0.02), 0.4) * 0.3)
+      return col
     }
   },
 
-  // 40 soft discs drifting upward on looped phases, additive over a flat gradient.
+  // Out-of-focus lights on three depth planes: the near plane is larger,
+  // softer and drifts faster (parallax); every disc twinkles gently. Drift is a
+  // whole number of screen heights per loop and twinkle a whole number of
+  // cycles, so the last frame meets the first exactly.
   bokeh(theme) {
-    // gradient wired to the theme's own ramp (dark stop and mid stop) rather
-    // than duplicated literals, so the palette entry is no longer dead.
-    const top = hexToRgb(theme.palette[0])
-    const bottom = hexToRgb(theme.palette[2])
-    const tints = ['#FFD27A', '#FFB4A2', '#FFFFFF'].map(hexToRgb)
-    let seed = 20260923
-    const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296)
+    const top = lin(theme.palette[0])
+    const bottom = lin(theme.palette[2])
+    const tints = ['#FFCF70', '#FFB070', '#FFE9C2', '#A8C0FF'].map(lin)
+    const random = rng(20260923)
     const discs = []
-    for (let i = 0; i < 40; i += 1) {
-      discs.push({
-        x: random(),
-        y0: random(),
-        // radius 30–140 px of the 1280-wide output, expressed in u units
-        r: (30 + random() * 110) / OUT_W,
-        // whole number of screen heights of drift per 10 s loop, so each
-        // disc's phase returns exactly to y0 at t = 1 (seamless loop)
-        speed: 1 + Math.floor(random() * 3),
-        tint: tints[i % tints.length],
-        op: 0.12 + random() * 0.18,
-      })
+    const planes = [
+      { n: 34, r: [8, 22], speed: 1, op: [0.08, 0.2], soft: 0.3 },
+      { n: 22, r: [26, 60], speed: 1, op: [0.05, 0.1], soft: 0.14 },
+      { n: 8, r: [60, 120], speed: 2, op: [0.025, 0.05], soft: 0.1 },
+    ]
+    for (const pl of planes) {
+      for (let i = 0; i < pl.n; i += 1) {
+        discs.push({
+          x: random(), y0: random(),
+          r: (pl.r[0] + random() * (pl.r[1] - pl.r[0])) / OUT_W,
+          speed: pl.speed,
+          sway: 0.01 + random() * 0.02, swayPhase: random() * Math.PI * 2,
+          tint: tints[Math.floor(random() * (random() < 0.15 ? 4 : 3))],
+          op: pl.op[0] + random() * (pl.op[1] - pl.op[0]),
+          soft: pl.soft,
+          tw: 1 + Math.floor(random() * 3), twPhase: random() * Math.PI * 2,
+        })
+      }
     }
     return (u, v, cz, cw, th) => {
       const t = th / (Math.PI * 2)
-      const g = v
-      let r = top[0] + (bottom[0] - top[0]) * g
-      let gr = top[1] + (bottom[1] - top[1]) * g
-      let b = top[2] + (bottom[2] - top[2]) * g
+      const col = mixc(top, bottom, v)
       for (const d of discs) {
-        let dy = v - (((d.y0 - t * d.speed) % 1) + 1) % 1
+        let dy = v - ((((d.y0 - t * d.speed) % 1) + 1) % 1)
         if (dy > 0.5) dy -= 1
         else if (dy < -0.5) dy += 1
-        // radii are in u units, so the vertical delta is scaled into them
-        const dist = Math.hypot(u - d.x, dy * (OUT_H / OUT_W))
-        if (dist > d.r * 2.2) continue
-        const falloff = Math.exp(-((dist / d.r) ** 2) * 1.6)
-        const a = d.op * falloff
-        r += d.tint[0] * a
-        gr += d.tint[1] * a
-        b += d.tint[2] * a
+        const dx = u - d.x - d.sway * Math.sin(th + d.swayPhase)
+        const dist = Math.hypot(dx, dy * (OUT_H / OUT_W)) / d.r
+        if (dist > 1 + d.soft * 2) continue
+        const edge = 1 - smoothstep(1 - d.soft, 1 + d.soft, dist)
+        const rim = 0.8 + 0.2 * smoothstep(0.55, 0.97, dist)
+        const twinkle = 0.75 + 0.25 * Math.sin(th * d.tw + d.twPhase)
+        add(col, d.tint, d.op * edge * rim * twinkle)
       }
-      return [r, gr, b]
+      return col
     }
   },
 }
 
 // --- themes -----------------------------------------------------------------
 const themes = [
-  { id: 'flow-deep', mode: 'flow', palette: ['#04101F', '#0A2E4C', '#0E5F7A', '#22B3BF', '#B8F5F2'] },
-  { id: 'flow-sanctuary', mode: 'flow', palette: ['#150818', '#3A1638', '#7A2E5A', '#D98A4F', '#FFE3A8'] },
-  { id: 'clouds', mode: 'clouds', palette: ['#050814', '#0C1530', '#23305E', '#6F7FB0', '#DDE3F5'] },
-  { id: 'rays-motion', mode: 'rays', palette: ['#111A24', '#1F3140', '#6A5B3E', '#E9C877', '#FFF3D0'] },
-  { id: 'bokeh', mode: 'bokeh', palette: ['#0B1020', '#121730', '#1A1F45', '#FFD27A', '#FFF3D0'] },
+  { id: 'flow-deep', mode: 'flow', seed: 3, speed: 0.05, palette: ['#030C19', '#072741', '#0B4D66', '#1E9BAA', '#A8F0EC'] },
+  { id: 'flow-sanctuary', mode: 'flow', seed: 5, speed: 0.05, palette: ['#110613', '#2E1030', '#62244D', '#B8683F', '#FFDDA0'] },
+  { id: 'clouds', mode: 'clouds', seed: 7, speed: 0.045, crf: '27', palette: ['#04070F', '#0A1228', '#1C2A52', '#56689C', '#C9D3F0'] },
+  { id: 'rays-motion', mode: 'rays', seed: 9, speed: 0.06, palette: ['#0E1720', '#1A2A36', '#5A4D34', '#E9C877', '#FFF3D0'] },
+  { id: 'bokeh', mode: 'bokeh', seed: 11, speed: 0, palette: ['#080C1A', '#10152B', '#1A1F42', '#FFD27A', '#FFF3D0'] },
 ]
 
+function shadeFrame(sampler, theme, f) {
+  const buf = Buffer.alloc(RW * RH * 3)
+  const R = (theme.speed * SECONDS) / (2 * Math.PI)
+  const th = (f / FRAMES) * Math.PI * 2
+  const cz = R * Math.cos(th), cw = R * Math.sin(th)
+  const toSrgb = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)
+  let p = 0
+  for (let y = 0; y < RH; y += 1) {
+    const v = (y + 0.5) / RH
+    for (let x = 0; x < RW; x += 1) {
+      const u = (x + 0.5) / RW
+      const c = sampler(u, v, cz, cw, th)
+      const k = scrim(u, v, 0.7)
+      for (let i = 0; i < 3; i += 1) buf[p++] = Math.max(0, Math.min(255, Math.round(toSrgb(clamp01(c[i] * k)) * 255)))
+    }
+  }
+  return buf
+}
+
+// --- worker -------------------------------------------------------------------
+if (!isMainThread) {
+  const { id, lane, lanes } = workerData
+  const theme = themes.find((t) => t.id === id)
+  const sampler = modes[theme.mode](theme)
+  for (let f = lane; f < FRAMES; f += lanes) {
+    const buf = shadeFrame(sampler, theme, f)
+    parentPort.postMessage({ f, buf }, [buf.buffer])
+  }
+  parentPort.postMessage({ done: true })
+}
+
+// --- main ---------------------------------------------------------------------
 async function renderTheme(theme, outDir) {
   const mp4 = path.join(outDir, `${theme.id}.mp4`)
-  const sampler = modes[theme.mode](theme)
-  const ff = spawn(FFMPEG, [
+  const ff = spawn(FFMPEG(), [
     '-v', 'error', '-y',
     '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${RW}x${RH}`, '-r', String(FPS), '-i', '-',
     '-vf', `scale=${OUT_W}:${OUT_H}:flags=lanczos,gblur=sigma=${BLUR},noise=alls=${GRAIN}:allf=t,format=yuv420p`,
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', CRF, '-movflags', '+faststart', '-an',
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', process.env.CRF ?? theme.crf ?? CRF, '-movflags', '+faststart', '-an',
     mp4,
   ])
   ff.stderr.on('data', (d) => process.stderr.write(d))
 
-  const frame = Buffer.alloc(RW * RH * 3)
-  const R = LOOP_RADIUS
+  const lanes = Math.max(1, os.cpus().length - 2)
+  const pending = new Map()
+  let next = 0
   const started = Date.now()
-  for (let f = 0; f < FRAMES; f += 1) {
-    const th = (f / FRAMES) * Math.PI * 2
-    const cz = R * Math.cos(th)
-    const cw = R * Math.sin(th)
-    let p = 0
-    for (let y = 0; y < RH; y += 1) {
-      const v = y / RH
-      for (let x = 0; x < RW; x += 1) {
-        const u = x / RW
-        const [r, g, b] = sampler(u, v, cz, cw, th)
-        const k = scrimAt(u, v)
-        frame[p] = Math.min(255, Math.max(0, r * k)); p += 1
-        frame[p] = Math.min(255, Math.max(0, g * k)); p += 1
-        frame[p] = Math.min(255, Math.max(0, b * k)); p += 1
-      }
+  const flush = async () => {
+    while (pending.has(next)) {
+      const buf = pending.get(next)
+      pending.delete(next)
+      if (!ff.stdin.write(buf)) await new Promise((res) => ff.stdin.once('drain', res))
+      if (next % FPS === 0) process.stdout.write(`\r  ${theme.id} frame ${next}/${FRAMES}  ${((Date.now() - started) / 1000).toFixed(1)}s`)
+      next += 1
     }
-    if (!ff.stdin.write(frame)) await new Promise((res) => ff.stdin.once('drain', res))
-    if (f % FPS === 0) process.stdout.write(`\r  ${theme.id} frame ${f}/${FRAMES}  ${((Date.now() - started) / 1000).toFixed(1)}s`)
   }
+  let writing = Promise.resolve()
+  await Promise.all(Array.from({ length: lanes }, (_, lane) => new Promise((resolve, reject) => {
+    const w = new Worker(fileURLToPath(import.meta.url), { workerData: { id: theme.id, lane, lanes } })
+    w.on('message', (msg) => {
+      if (msg.done) { resolve(); return }
+      pending.set(msg.f, Buffer.from(msg.buf))
+      writing = writing.then(flush)
+    })
+    w.on('error', reject)
+  })))
+  await writing
+  await flush()
   ff.stdin.end()
   const code = await new Promise((res) => ff.on('close', res))
   if (code !== 0) throw new Error(`ffmpeg exited ${code} for ${theme.id}`)
-  process.stdout.write(`\r  ${theme.id} rendered in ${((Date.now() - started) / 1000).toFixed(1)}s\n`)
+  process.stdout.write(`\r  ${theme.id} rendered in ${((Date.now() - started) / 1000).toFixed(1)}s        \n`)
   return mp4
 }
 
+function FFMPEG() { return process.env.FFMPEG ?? '/opt/homebrew/bin/ffmpeg' }
+
 async function buildPoster(theme, mp4, outDir) {
   const poster = path.join(outDir, `${theme.id}.jpg`)
-  const tmp = path.join(outDir, `${theme.id}.frame0.jpg`)
+  const tmp = path.join(outDir, `${theme.id}.frame0.png`)
   await new Promise((res, rej) => {
-    const ff = spawn(FFMPEG, ['-v', 'error', '-y', '-i', mp4, '-frames:v', '1', '-q:v', '3', tmp])
+    const ff = spawn(FFMPEG(), ['-v', 'error', '-y', '-i', mp4, '-frames:v', '1', tmp])
     ff.stderr.on('data', (d) => process.stderr.write(d))
     ff.on('close', (code) => (code === 0 ? res() : rej(new Error(`poster ffmpeg exited ${code}`))))
   })
-  let quality = 82
-  await sharp(tmp).jpeg({ quality, chromaSubsampling: '4:4:4' }).toFile(poster)
-  let bytes = fs.statSync(poster).size
-  if (bytes > MAX_POSTER) {
-    quality = 74
-    await sharp(tmp).jpeg({ quality, chromaSubsampling: '4:2:0' }).toFile(poster)
+  let bytes = 0
+  for (const quality of [84, 78, 72]) {
+    await sharp(tmp).jpeg({ quality, mozjpeg: true, chromaSubsampling: quality >= 80 ? '4:4:4' : '4:2:0' }).toFile(poster)
     bytes = fs.statSync(poster).size
+    if (bytes <= MAX_POSTER) break
   }
   fs.rmSync(tmp)
   if (bytes > MAX_POSTER) throw new Error(`${theme.id}.jpg is ${(bytes / 1024).toFixed(0)} KB (> 100 KB limit)`)
   return { poster, bytes }
 }
 
-const only = process.argv.slice(2)
-const selected = only.length ? themes.filter((t) => only.includes(t.id)) : themes
-if (!selected.length) throw new Error(`no such video theme: ${only.join(', ')}`)
+if (isMainThread) {
+  const { measureBackground, updateManifest, THEMES_DIR } = await import('./measure.mjs')
+  const only = process.argv.slice(2)
+  const selected = only.length ? themes.filter((t) => only.includes(t.id)) : themes
+  if (!selected.length) throw new Error(`no such video theme: ${only.join(', ')}`)
 
-const outDir = path.join(THEMES_DIR, 'video')
-fs.mkdirSync(outDir, { recursive: true })
-const manifest = {}
-const rows = []
-let total = 0
-for (const theme of selected) {
-  const mp4 = await renderTheme(theme, outDir)
-  const mp4Bytes = fs.statSync(mp4).size
-  if (mp4Bytes > MAX_MP4) throw new Error(`${theme.id}.mp4 is ${(mp4Bytes / 1024 / 1024).toFixed(2)} MB (> 2.5 MB limit)`)
-  total += mp4Bytes
-  const { poster, bytes } = await buildPoster(theme, mp4, outDir)
-  const measured = await measureBackground(poster)
-  manifest[theme.id] = measured
-  rows.push({
-    id: theme.id,
-    ...measured,
-    mp4: `${(mp4Bytes / 1024 / 1024).toFixed(2)} MB`,
-    poster: `${(bytes / 1024).toFixed(0)} KB`,
-  })
+  const preview = Boolean(process.env.OUT_DIR)
+  const outDir = process.env.OUT_DIR ?? path.join(THEMES_DIR, 'video')
+  fs.mkdirSync(outDir, { recursive: true })
+  const manifest = {}
+  const rows = []
+  let total = 0
+  for (const theme of selected) {
+    const mp4 = await renderTheme(theme, outDir)
+    const mp4Bytes = fs.statSync(mp4).size
+    if (mp4Bytes > MAX_MP4 && !preview) throw new Error(`${theme.id}.mp4 is ${(mp4Bytes / 1024 / 1024).toFixed(2)} MB (> 2.5 MB limit)`)
+    total += mp4Bytes
+    const { poster, bytes } = await buildPoster(theme, mp4, outDir)
+    const measured = await measureBackground(poster)
+    manifest[theme.id] = measured
+    rows.push({ id: theme.id, ...measured, mp4: `${(mp4Bytes / 1024 / 1024).toFixed(2)} MB`, poster: `${(bytes / 1024).toFixed(0)} KB` })
+  }
+  if (total > MAX_TOTAL && !preview) throw new Error(`video total is ${(total / 1024 / 1024).toFixed(2)} MB (> 12 MB limit)`)
+  if (!preview) updateManifest(manifest)
+  console.table(rows)
+  console.log(`total mp4 ${(total / 1024 / 1024).toFixed(2)} MB`)
 }
-if (total > MAX_TOTAL) throw new Error(`video total is ${(total / 1024 / 1024).toFixed(2)} MB (> 12 MB limit)`)
-updateManifest(manifest)
-console.table(rows)
-console.log(`total mp4 ${(total / 1024 / 1024).toFixed(2)} MB`)
