@@ -1,18 +1,22 @@
 'use client'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseHeader, sectionIdFor } from '@selah/slide-engine'
-import { FieldShell, FilledInput, InlineError, Segmented, cx } from '@/core/ui'
+import { FieldShell, FilledInput, InlineError, Segmented, Spinner, cx } from '@/core/ui'
 import { createSong } from '../actions'
 import { addSongToSetlist } from '../setlist-actions'
+import { SHEET_ACCEPT, isSheetFile, prepareSheet } from '../sheet-image'
+import type { RecognizeResult } from '@/app/api/worship/recognize/route'
 
-type Tab = 'paste' | 'file' | 'photo'
+type Tab = 'sheet' | 'paste' | 'file'
 
 const TABS = [
+  { value: 'sheet' as const, label: '上传歌谱' },
   { value: 'paste' as const, label: '粘贴歌词' },
   { value: 'file' as const, label: '上传文件' },
-  { value: 'photo' as const, label: '拍照识别' },
 ]
+
+const MAX_PAGES = 4
 
 /** The section names the church actually says out loud. */
 const TYPE_LABEL: Record<string, string> = { V: '主歌', C: '副歌', PC: '导歌', B: '桥段', E: '尾声' }
@@ -62,34 +66,89 @@ function splitBlocks(raw: string): Block[] {
 }
 
 const DROP_COPY = {
-  file: { title: '把文件拖到这里', sub: '支持 TXT 和 Markdown；Word 和 PDF 还在接', btn: '选择文件', accept: '.txt,.md,text/plain,text/markdown' },
-  photo: { title: '上传歌谱照片或截图', sub: '拍照识别还没接上，先用粘贴或上传 TXT', btn: '选择图片', accept: '' },
+  file: { title: '把文件拖到这里', sub: '支持 TXT 和 Markdown；歌谱图片和 PDF 用「上传歌谱」', btn: '选择文件', accept: '.txt,.md,text/plain,text/markdown' },
+  sheet: { title: '把歌谱拖到这里', sub: '照片、截图、扫描件都行：JPG、PNG、HEIC、WebP、PDF 等。一首歌最多 4 页，也可以直接粘贴截图', btn: '选择歌谱', accept: SHEET_ACCEPT },
 } as const
 
 export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlistId: string | null }) {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('paste')
+  const [tab, setTab] = useState<Tab>('sheet')
   const [name, setName] = useState('')
   const [raw, setRaw] = useState('')
   const [types, setTypes] = useState<Record<number, string>>({})
   const [loaded, setLoaded] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
+  const [recognizing, setRecognizing] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [meta, setMeta] = useState<{ artist: string | null; key: string | null }>({ artist: null, key: null })
+  const [sheetFlow, setSheetFlow] = useState<string[] | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const blocks = useMemo(() => splitBlocks(raw), [raw])
   const tagged = blocks.map((b) => ({ ...b, tag: types[b.i] ?? b.tag }))
-  const ready = tagged.length > 0 && !!name.trim()
+  const ready = tagged.length > 0 && !!name.trim() && !recognizing
+  // The sheet's repeat marks give the real singing order; keep it while every
+  // section it names is still there, otherwise fall back to the block order.
+  const present = new Set(tagged.map((b) => b.tag))
+  const flow = sheetFlow && sheetFlow.every((t) => present.has(t)) ? sheetFlow : null
+
+  const recognize = async (files: File[]) => {
+    setError(null)
+    const sheets = files.filter(isSheetFile)
+    if (sheets.length === 0) { setError('请选择歌谱图片或 PDF。'); return }
+    if (sheets.length > MAX_PAGES) { setError(`一首歌最多 ${MAX_PAGES} 页，先选前 ${MAX_PAGES} 页。`); return }
+    setRecognizing(true)
+    setLoaded(sheets.length === 1 ? sheets[0]!.name : `${sheets.length} 页歌谱`)
+    try {
+      const prepared = await Promise.all(sheets.map(prepareSheet))
+      const res = await fetch('/api/worship/recognize', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ files: prepared }),
+      })
+      const body = (await res.json().catch(() => null)) as { ok: true; result: RecognizeResult } | { ok: false; message: string } | null
+      if (!body || !body.ok) { setError(body?.message ?? '识别失败，稍后再试。'); return }
+      const r = body.result
+      setRaw(r.sections.map((sec) => `[${sec.tag}]\n${sec.lines.join('\n')}`).join('\n\n'))
+      setTypes({})
+      setSheetFlow(r.flow)
+      setMeta({ artist: r.artist, key: r.key })
+      if (!name.trim() && r.title) setName(r.title)
+      setNotice('已从歌谱识别出歌词，核对一下错字和分段再保存。')
+      setTab('paste')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '识别失败，稍后再试。')
+    } finally {
+      setRecognizing(false)
+    }
+  }
+
+  // A screenshot on the clipboard can be pasted straight onto the page.
+  const recognizeRef = useRef(recognize)
+  useEffect(() => { recognizeRef.current = recognize })
+  useEffect(() => {
+    if (tab !== 'sheet') return
+    const onPaste = (e: ClipboardEvent) => {
+      const files = [...(e.clipboardData?.files ?? [])]
+      if (files.length) { e.preventDefault(); void recognizeRef.current(files) }
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [tab])
 
   const readFile = async (file: File) => {
     setError(null)
+    if (isSheetFile(file)) { setTab('sheet'); void recognize([file]); return }
     if (!/\.(txt|md)$/i.test(file.name)) {
-      setError('现在只能读 TXT 和 Markdown。Word、PDF 和拍照识别还没接上——先把歌词贴到左边。')
+      setError('这里只能读 TXT 和 Markdown。Word 还没接上——先把歌词贴到「粘贴歌词」。')
       return
     }
     const text = await file.text()
     setRaw(text)
     setTypes({})
+    setSheetFlow(null)
+    setMeta({ artist: null, key: null })
     setLoaded(`${file.name} · 已读取`)
     if (!name.trim()) setName(file.name.replace(/\.(txt|md)$/i, ''))
   }
@@ -102,8 +161,11 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
       const seen = new Map<string, string[]>()
       for (const b of tagged) if (!seen.has(b.tag)) seen.set(b.tag, b.lines)
       const lyricsText = [...seen].map(([tag, lines]) => `[${tag}]\n${lines.join('\n')}`).join('\n\n')
-      const defaultFlow = tagged.map((b) => b.tag).join(' ')
-      const r = await createSong({ title: name.trim(), lyricsText, defaultFlow, pinyinOverrides: {} })
+      const defaultFlow = (flow ?? tagged.map((b) => b.tag)).join(' ')
+      const r = await createSong({
+        title: name.trim(), lyricsText, defaultFlow, pinyinOverrides: {},
+        artist: meta.artist ?? '', key: meta.key ?? '',
+      })
       if (!r.ok) { setError(r.message); return }
       if (from === 'svc' && setlistId) {
         const add = await addSongToSetlist(setlistId, r.id)
@@ -124,7 +186,7 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
           size="lg"
           options={TABS}
           value={tab}
-          onChange={(v) => { setTab(v); setLoaded(null); setError(null) }}
+          onChange={(v) => { setTab(v); setLoaded(null); setError(null); setNotice(null) }}
         />
       </div>
 
@@ -139,7 +201,19 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
               aria-label="歌名"
             />
           </FieldShell>
+          {(meta.artist || meta.key) && (
+            <p className="px-1 text-[13px] text-ink-5">
+              {[meta.artist, meta.key && `${meta.key} 调`].filter(Boolean).join(' · ')}
+            </p>
+          )}
           {tab === 'paste' ? (
+            <>
+            {notice && (
+              <p className="flex items-center gap-2 rounded-lg bg-accent-soft px-4 py-2.5 text-sm text-accent-deep">
+                <span className="size-2 flex-none rounded-full bg-ok" />
+                {notice}
+              </p>
+            )}
             <textarea
               value={raw}
               onChange={(e) => { setRaw(e.target.value); setTypes({}) }}
@@ -147,10 +221,16 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
               placeholder="把整首歌词贴在这里。段落之间空一行；写上“副歌”“桥段”会自动识别。"
               className="min-h-[440px] flex-1 resize-none rounded-2xl border-0 bg-surface-3 px-[22px] py-5 text-[15.5px] leading-[1.9] outline-0"
             />
+            </>
           ) : (
             <div
               onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void readFile(f) }}
+              onDrop={(e) => {
+                e.preventDefault()
+                const files = [...e.dataTransfer.files]
+                if (tab === 'sheet') void recognize(files)
+                else if (files[0]) void readFile(files[0])
+              }}
               className="flex min-h-[440px] flex-1 flex-col items-center justify-center gap-3.5 rounded-2xl border-[1.5px] border-dashed border-line-strong p-6 text-center"
             >
               <span className="flex size-12 items-center justify-center rounded-xl bg-accent-soft">
@@ -162,24 +242,32 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
                 ref={fileRef}
                 type="file"
                 accept={drop!.accept}
+                multiple={tab === 'sheet'}
                 className="sr-only"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) void readFile(f) }}
+                onChange={(e) => {
+                  const files = [...(e.target.files ?? [])]
+                  e.target.value = '' // picking the same file again should still fire
+                  if (tab === 'sheet') void recognize(files)
+                  else if (files[0]) void readFile(files[0])
+                }}
               />
               <button
                 type="button"
-                disabled={tab === 'photo'}
+                disabled={recognizing}
                 onClick={() => fileRef.current?.click()}
                 className={cx(
-                  'mt-1.5 rounded-full px-[22px] py-2.5 text-[14.5px] font-medium text-white transition-colors',
-                  tab === 'photo' ? 'cursor-not-allowed bg-ink-disabled' : 'bg-ink hover:bg-ink-2',
+                  'mt-1.5 inline-flex items-center gap-2 rounded-full px-[22px] py-2.5 text-[14.5px] font-medium text-white transition-colors',
+                  recognizing ? 'cursor-wait bg-ink-disabled' : 'bg-ink hover:bg-ink-2',
                 )}
               >
-                {drop!.btn}
+                {recognizing && <Spinner />}
+                {recognizing ? '正在识别歌谱…' : drop!.btn}
               </button>
               {loaded && (
                 <div className="mt-3.5 flex items-center gap-2.5 rounded-lg bg-surface-3 px-4 py-2.5 text-sm">
-                  <span className="size-2 rounded-full bg-ok" />
+                  <span className={cx('size-2 rounded-full', recognizing ? 'animate-pulse bg-accent' : 'bg-ok')} />
                   {loaded}
+                  {recognizing && <span className="text-ink-5">· 大约 10–20 秒</span>}
                 </div>
               )}
             </div>
@@ -228,6 +316,12 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
             </div>
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-ink-6">识别出的段落会显示在这里</div>
+          )}
+
+          {flow && (
+            <p className="text-[13px] text-ink-5">
+              演唱顺序：{flow.map(typeName).join(' → ')}
+            </p>
           )}
 
           {error && <InlineError>{error}</InlineError>}
