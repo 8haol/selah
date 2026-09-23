@@ -11,6 +11,10 @@
 一键生成全字带拼音（Arial 35）、中文黑体 45、对比度足够的 PPTX。
 歌曲进库，下次直接复用；flow 错了改一下重新生成。免登录，打开即用。
 
+## 线上地址
+
+**https://selah-8haol.vercel.app** — 免登录，打开即用。Phase 1 已上线：17 套主题（12 静态 + 5 动态视频）、逐字拼音对齐、自动放大字号、PPTX 一键下载、歌库与历史版本。
+
 ## 文档
 
 - 设计文档：[docs/superpowers/specs/2026-09-22-platform-and-worship-slides-design.md](docs/superpowers/specs/2026-09-22-platform-and-worship-slides-design.md)
@@ -34,4 +38,4 @@ pnpm dev                            # http://localhost:3000
 
 ## 技术栈
 
-Next.js 15 · TypeScript · Tailwind + shadcn/ui · Neon Postgres · Drizzle ORM · Vercel Blob · pptxgenjs · pinyin-pro · Vercel
+Next.js 16 · TypeScript · Tailwind CSS 4 · Neon Postgres (PGlite locally) · Drizzle ORM · pptxgenjs · pinyin-pro · Vercel
