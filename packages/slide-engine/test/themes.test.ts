@@ -39,7 +39,7 @@ describe('BUILTIN_THEMES', () => {
   })
   it('uses the mandated lyric typography', () => {
     for (const t of BUILTIN_THEMES) {
-      expect(t.fonts.zh).toBe('SimHei'); expect(t.sizes.zh).toBe(45)
+      expect(t.fonts.zh).toBe('Microsoft YaHei'); expect(t.sizes.zh).toBe(45)
       expect(t.fonts.pinyin).toBe('Arial'); expect(t.sizes.pinyin).toBe(35)
       expect(t.maxLinesPerSlide).toBe(4)
       if (t.background.kind === 'image') {

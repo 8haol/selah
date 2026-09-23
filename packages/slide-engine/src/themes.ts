@@ -2,7 +2,11 @@ import type { LineSpacing, OutlineWeight, Slide, SlideDeck, Theme } from './type
 import { luminance } from './contrast'
 
 const base = {
-  fonts: { zh: 'SimHei', pinyin: 'Arial', title: 'KaiTi' },
+  // Fonts every Windows install ships, whatever its display language. SimHei and
+  // KaiTi sit in an optional Chinese supplemental pack on Windows 10+, so an
+  // English-language church PC may not have them; Microsoft YaHei is in the base
+  // install and Mac PowerPoint bundles it too. A .pptx cannot embed fonts here.
+  fonts: { zh: 'Microsoft YaHei', pinyin: 'Arial', title: 'Microsoft YaHei' },
   sizes: { zh: 45, pinyin: 35, title: 84, titlePinyin: 30, badge: 11, meta: 18 },
   maxLinesPerSlide: 4,
 } as const

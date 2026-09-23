@@ -37,7 +37,7 @@ describe('renderPptx', () => {
     expect((xml2.match(/<p:sp>/g) ?? []).length).toBe(15)
     expect(xml2).toContain('>huá<')
     expect(xml2).toContain('>华<')
-    expect(xml2).toContain('typeface="SimHei"')
+    expect(xml2).toContain('typeface="Microsoft YaHei"')
     expect(xml2).toContain('typeface="Arial"')
     expect(xml2).toContain('wrap="none"')
     // sizes: auto-fit ≥ minimum (sz is pt*100)
@@ -81,7 +81,7 @@ describe('renderPptx', () => {
     // One text box per character holds the pinyin run and the character run, and
     // the shadow lives on the box — so both rows are lifted off the background.
     // pptxgenjs silently drops `shadow` from a run's own options.
-    const cells = xml2.split('<p:sp>').slice(1).filter((c) => c.includes('typeface="SimHei"'))
+    const cells = xml2.split('<p:sp>').slice(1).filter((c) => c.includes('typeface="Microsoft YaHei"'))
     expect(cells.length).toBe(14) // 8 + 6 characters
     for (const cell of cells) {
       expect(cell).toContain('<a:outerShdw')

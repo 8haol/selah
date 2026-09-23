@@ -7,8 +7,8 @@ import {
 
 const PX = 1920 / SLIDE_W_PT          // 2.6667 px per pt
 const px = (pt: number) => pt * PX
-const FONT_ZH = `"SimHei","Heiti SC","PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif`
-const FONT_TITLE = `"KaiTi","Kaiti SC","STKaiti","楷体",serif`
+const FONT_ZH = `"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif`
+const FONT_TITLE = FONT_ZH
 const FONT_PY = `Arial,"Helvetica Neue",Helvetica,sans-serif`
 
 function shadow(theme: Theme): string | undefined {
