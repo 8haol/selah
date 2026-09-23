@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { annotateLine, annotateSong, polyphonicChoices, joinPinyin } from '../src/pinyin.js'
+import { annotateLine, annotateSong, polyphonicChoices, joinPinyin, spotKey } from '../src/pinyin.js'
 import type { Song } from '../src/types.js'
 
 describe('annotateLine', () => {
@@ -71,5 +71,20 @@ describe('polyphonicChoices', () => {
 describe('joinPinyin', () => {
   it('joins with single spaces, skipping empties', () => {
     expect(joinPinyin(['yē', 'hé', '', 'huá'])).toBe('yē hé huá')
+  })
+})
+
+describe('著 and spot overrides', () => {
+  it('reads 得著 / 得着 as dé zháo, and a traditional 著 as 着 outside zhù words', () => {
+    expect(annotateLine('我得著能力').slice(1, 3)).toEqual(['dé', 'zháo'])
+    expect(annotateLine('我得着能力').slice(1, 3)).toEqual(['dé', 'zháo'])
+    expect(annotateLine('爱著你')[1]).toBe('zhe')
+    expect(annotateLine('祂的名显著')[4]).toBe('zhù')
+  })
+  it('a spot override changes one character in one line; a character override changes it everywhere', () => {
+    const line = '爱着你 等着你'
+    expect(annotateLine(line, { [spotKey(line, 5)]: 'zháo' })).toEqual(annotateLine(line).map((p, i) => (i === 5 ? 'zháo' : p)))
+    expect(annotateLine('另一行着', { [spotKey(line, 5)]: 'zháo' })[3]).toBe('zhe')
+    expect(annotateLine(line, { 着: 'zháo' }).filter((p) => p === 'zháo')).toHaveLength(2)
   })
 })

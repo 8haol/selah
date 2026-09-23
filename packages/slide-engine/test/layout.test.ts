@@ -83,7 +83,7 @@ describe('layoutSlide', () => {
     expect(lay.scale).toBeGreaterThanOrEqual(1)
     expect(lay.zhPt).toBeGreaterThanOrEqual(45)
     expect(lay.rows.length).toBe(4)
-    expect(lay.blockHeightPt).toBeLessThanOrEqual(393 - 48 + 0.001)
+    expect(lay.blockHeightPt).toBeLessThanOrEqual(393 - 64 + 0.001)
   })
   it('rowHeightPt is zh*1.02 + py*0.98', () => { expect(rowHeightPt(45, 35)).toBeCloseTo(45 * 1.02 + 35 * 0.98, 5) })
   it('countRows reports wrapped rows at scale 1', () => {
@@ -100,7 +100,7 @@ describe('a line too long to fit at all', () => {
     const lay = layoutSlide([long], night)
     expect(lay.scale).toBeLessThan(1)
     expect(lay.scale).toBeGreaterThanOrEqual(MIN_SCALE)
-    expect(lay.blockHeightPt).toBeLessThanOrEqual(345)
+    expect(lay.blockHeightPt).toBeLessThanOrEqual(329)
   })
 
   it('lineNeedsBreak flags it and leaves a normal line alone', () => {

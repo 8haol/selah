@@ -30,7 +30,7 @@ const resultSchema = z.object({
   artist: z.string().nullable().describe('出处和词曲作者，例如 "赞美之泉 · 游智婷"；都没有就 null'),
   sections: z.array(z.object({
     tag: z.string().describe('V 主歌（多节时 V1/V2/…），C 副歌，PC 导歌，B 桥段，E 尾声'),
-    lines: z.array(z.string()).describe('这一段的歌词，每个乐句一行'),
+    lines: z.array(z.string()).describe('这一段的歌词，每个乐句一行，带中文标点'),
   })),
   flow: z.array(z.string()).describe('按反复记号、1./2. 房子展开后的演唱顺序，用 tag 表示'),
 })
@@ -40,7 +40,7 @@ const PROMPT = `这是一首敬拜诗歌的歌谱（五线谱或简谱，可能�
 
 读歌词：
 - 只要歌词。忽略音符、简谱数字、和弦（如 E、C#m7、B/D#）、速度、小节号、页脚的制谱信息。
-- 逐字照抄歌谱上的字：繁体就写繁体，简体就写简体，不改写、不补字、不加标点。
+- 逐字照抄歌谱上的字：繁体就写繁体，简体就写简体，不改写、不补字。
 - 多节歌词：一行旋律下面印了几行字，就是第 1、2、3… 节。每一节都要沿着"同一行"跨过所有谱行读下去——
   第 1 节 = 每个谱行下面第 1 行歌词依次接起来，第 2 节 = 每个谱行下面第 2 行，以此类推。绝不能把不同行的字混在一起。
   每一节是一个单独的段落：V1、V2、V3…；只有一节主歌就标 V。
@@ -48,7 +48,13 @@ const PROMPT = `这是一首敬拜诗歌的歌谱（五线谱或简谱，可能�
 
 分行：
 - 一行是投影片上的一行，一般 5 到 12 个字，通常对应一个完整乐句（大约两小节）。
-- 不要拆成两三个字的碎片；乐句中间的短停顿用一个空格隔开，不要换行。
+- 不要拆成两三个字的碎片；乐句中间的短停顿不要换行。
+
+标点：
+- 投影歌词要带中文全角标点。歌谱上印了标点就照抄；没印的，按歌词的意思补上：
+  一行中间的停顿用逗号（，），一行末尾用逗号，一段最后一句用句号（。），呼喊或赞美用感叹号（！），问句用问号（？）。
+  例如"每个狂风暴雨里，你同在在那里，"、"我爱你，用尽我全心。"。
+- 只用 ，。！？、；： 这几种，不要用空格代替标点。
 
 分段和顺序：
 - 反复记号（‖: :‖）里的段落要唱两遍，1./2. 房子、D.S.、Fine 也要展开，按真实演唱顺序写进 flow。重复唱的段落在 sections 里只写一次。
@@ -111,7 +117,8 @@ export async function POST(req: Request) {
       const tag = s.tag.trim().toUpperCase()
       const lines = s.lines.map((l) => l.trim()).filter(Boolean)
       if (!TAG.test(tag) || lines.length === 0 || alias.has(tag)) continue
-      const key = lines.join('').replace(/\s/g, '')
+      // punctuation can differ between two copies of the same chorus
+      const key = lines.join('').replace(/[\s，。！？、；：,.!?;:]/g, '')
       const same = byText.get(key)
       if (same) { alias.set(tag, same); continue }
       byText.set(key, tag)

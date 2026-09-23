@@ -64,6 +64,12 @@
     color: var(--color-ink);
   }
 
+  html {
+    /* the slide previews scale real-size text down; phone font boosting must not scale it back up */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     -webkit-font-smoothing: antialiased;
   }

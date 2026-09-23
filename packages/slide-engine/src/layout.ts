@@ -5,7 +5,8 @@ export const SLIDE_W_PT = 720
 export const SLIDE_H_PT = 405
 export const CONTENT_X_PT = 36
 export const CONTENT_W_PT = 648
-export const CONTENT_TOP_PT = 48
+/** Below the section badge (27–53pt), so a full slide never runs into it. */
+export const CONTENT_TOP_PT = 64
 export const CONTENT_BOTTOM_PT = 393
 export const MAX_SCALE = 64 / 45
 /** Floor for the emergency shrink: below this, projected lyrics stop being readable. */
@@ -15,8 +16,10 @@ const SCALE_STEP = 0.02
 export const PINYIN_RATIO = 0.5
 const BASE_ZH_PT = 45
 
-export interface Cell { zh: string; py: string; widthPt: number; gapAfter?: boolean }
-export interface Row { cells: Cell[]; widthPt: number }
+/** `at` is the index in `[...line.zh]` of the cell's first character. */
+export interface Cell { zh: string; py: string; widthPt: number; gapAfter?: boolean; at?: number }
+/** `line` is the index into the slide's lines that the row came from. */
+export interface Row { cells: Cell[]; widthPt: number; line?: number }
 export interface SlideLayout { scale: number; zhPt: number; pyPt: number; rowHeightPt: number; rowGapPt: number; rows: Row[]; blockHeightPt: number; topPt: number }
 
 const ARIAL_EM: Record<string, number> = {
@@ -36,10 +39,12 @@ export function measureLatinPt(text: string, sizePt: number): number {
   return em * sizePt
 }
 
-export function cellsFor(line: LyricLine): Array<{ zh: string; py: string; gapAfter?: boolean }> {
+type RawCell = { zh: string; py: string; gapAfter?: boolean; at: number }
+
+export function cellsFor(line: LyricLine): RawCell[] {
   const chars = [...line.zh]
-  const cells: Array<{ zh: string; py: string; gapAfter?: boolean }> = []
-  let latin: { zh: string; py: string; gapAfter?: boolean } | null = null
+  const cells: RawCell[] = []
+  let latin: RawCell | null = null
   let pendingGap = false
   chars.forEach((ch, i) => {
     if (PUNCT.has(ch) || ch === ' ') {
@@ -49,9 +54,9 @@ export function cellsFor(line: LyricLine): Array<{ zh: string; py: string; gapAf
     }
     if (pendingGap) cells[cells.length - 1]!.gapAfter = true
     pendingGap = false
-    if (isChinese(ch)) { latin = null; cells.push({ zh: ch, py: line.pinyin[i] ?? '' }); return }
+    if (isChinese(ch)) { latin = null; cells.push({ zh: ch, py: line.pinyin[i] ?? '', at: i }); return }
     if (latin) { latin.zh += ch; return }
-    latin = { zh: ch, py: '' }
+    latin = { zh: ch, py: '', at: i }
     cells.push(latin)
   })
   return cells
@@ -148,7 +153,7 @@ function pyFor(zhPt: number): number { return Math.round(zhPt * PINYIN_RATIO * 2
 function attempt(lines: LyricLine[], scale: number, gap: number): SlideLayout {
   const zhPt = BASE_ZH_PT * scale
   const pyPt = pyFor(zhPt)
-  const rows = lines.flatMap((l) => wrapLine(l, zhPt, pyPt))
+  const rows = lines.flatMap((l, line) => wrapLine(l, zhPt, pyPt).map((row) => ({ ...row, line })))
   const rh = rowHeightPt(zhPt, pyPt)
   const rowGapPt = gap * scale
   const blockHeightPt = rows.length * rh + Math.max(0, rows.length - 1) * rowGapPt

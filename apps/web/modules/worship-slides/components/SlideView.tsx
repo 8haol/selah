@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { cx } from '@/core/ui'
 import { layoutSlide, layoutTitle, CONTENT_X_PT, CONTENT_W_PT, SLIDE_W_PT, SLIDE_H_PT, type Slide, type Theme } from '@selah/slide-engine'
 
 const PX = 1920 / SLIDE_W_PT          // 2.6667 px per pt
@@ -26,8 +27,16 @@ export function slideLabel(slide: Slide): string {
   return slide.sectionLabel ?? '歌词'
 }
 
-/** `static` keeps thumbnails on the poster — dozens of playing videos at once is not worth it. */
-export function SlideView({ slide, theme, static: isStatic = false, frameClassName = 'rounded-lg' }: { slide: Slide; theme: Theme; static?: boolean; frameClassName?: string }) {
+/** A character picked on the slide: `line` indexes `slide.lines`, or is -1 for the title; `at` indexes that line's characters. */
+export interface CharPick { line: number; at: number }
+
+/**
+ * `static` keeps thumbnails on the poster — dozens of playing videos at once is not worth it.
+ * `onPickChar` makes each character clickable, for correcting its pinyin; `picked` rings the one being edited.
+ */
+export function SlideView({ slide, theme, static: isStatic = false, frameClassName = 'rounded-lg', onPickChar, picked }: {
+  slide: Slide; theme: Theme; static?: boolean; frameClassName?: string; onPickChar?: (pick: CharPick) => void; picked?: CharPick | null
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.2)
   useEffect(() => {
@@ -39,9 +48,19 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
   const lay = slide.kind === 'lyrics' ? layoutSlide(slide.lines, theme) : null
   const title = slide.kind === 'title' && slide.titleLine ? layoutTitle(slide.titleLine, theme) : null
   const video = !isStatic && theme.background.kind === 'video' ? theme.background : null
+  const pickable = (line: number, at: number | undefined, zh: string) => {
+    if (!onPickChar || at === undefined || !/\p{Script=Han}/u.test(zh)) return {}
+    const on = picked?.line === line && picked.at === at
+    return {
+      role: 'button', tabIndex: 0, 'aria-label': `改“${zh}”的拼音`,
+      onClick: () => onPickChar({ line, at }),
+      onKeyDown: (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPickChar({ line, at }) } },
+      className: cx('cursor-pointer rounded-[12px] outline-offset-4 transition-colors hover:bg-white/15', on ? 'bg-white/20 outline-4 outline-white/80' : 'outline-transparent'),
+    }
+  }
   return (
     <div ref={ref} className={`relative aspect-video w-full overflow-hidden bg-black ${frameClassName}`}>
-      <div style={{ width: 1920, height: px(SLIDE_H_PT), transform: `scale(${scale})`, transformOrigin: '0 0', position: 'absolute', inset: 0, backgroundImage: `url(${posterSrc(theme)})`, backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: FONT_ZH }}>
+      <div style={{ width: 1920, height: px(SLIDE_H_PT), transform: `scale(${scale})`, transformOrigin: '0 0', position: 'absolute', inset: 0, WebkitTextSizeAdjust: 'none', textSizeAdjust: 'none', backgroundImage: `url(${posterSrc(theme)})`, backgroundSize: 'cover', backgroundPosition: 'center', fontFamily: FONT_ZH }}>
         {video && (
           <video src={video.src} poster={video.poster} autoPlay loop muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
@@ -51,7 +70,7 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
               // each syllable centred over its own character, as on every lyric line
               <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                 {title.cells.map((cell, ci) => (
-                  <div key={ci} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < title.cells.length - 1 ? px(0.3 * title.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div key={ci} {...pickable(-1, cell.at, cell.zh)} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < title.cells.length - 1 ? px(0.3 * title.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(title.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap', marginBottom: px(4) }}>{cell.py}</span>}
                     <span style={{ fontFamily: FONT_TITLE, fontSize: px(title.zhPt), lineHeight: 1.1, fontWeight: 700, color: theme.colors.title, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
                   </div>
@@ -75,7 +94,7 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
             {lay.rows.map((row, ri) => (
               <div key={ri} style={{ position: 'absolute', display: 'flex', left: px(CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2), top: px(lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)), height: px(lay.rowHeightPt) }}>
                 {row.cells.map((cell, ci) => (
-                  <div key={ci} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < row.cells.length - 1 ? px(0.5 * lay.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center' }}>
+                  <div key={ci} {...pickable(row.line ?? 0, cell.at, cell.zh)} style={{ width: px(cell.widthPt), marginRight: cell.gapAfter && ci < row.cells.length - 1 ? px(0.5 * lay.zhPt) : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center' }}>
                     {cell.py && <span style={{ fontFamily: FONT_PY, fontSize: px(lay.pyPt), lineHeight: 1, color: theme.colors.pinyin, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.py}</span>}
                     <span style={{ fontFamily: FONT_ZH, fontSize: px(lay.zhPt), lineHeight: 1.05, fontWeight: 700, color: theme.colors.zh, textShadow: sh, whiteSpace: 'nowrap' }}>{cell.zh}</span>
                   </div>

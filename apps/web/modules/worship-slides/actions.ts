@@ -147,7 +147,8 @@ export async function updateSongSections(songId: string, input: z.input<typeof s
   } catch (e) { return failure(e) }
 }
 
-const overridesSchema = z.record(z.string().length(1), z.string().trim().max(12))
+// a key is one character (every occurrence) or `line|index` (one spot, see spotKey)
+const overridesSchema = z.record(z.string().min(1).max(420), z.string().trim().max(12)).refine((o) => Object.keys(o).length <= 500, '改过的拼音太多了')
 
 /** Pin how one character is read in this song — the polyphonic picker. */
 export async function updateSongPinyin(songId: string, overrides: z.input<typeof overridesSchema>): Promise<ActionResult> {

@@ -14,7 +14,8 @@ import {
 import { updateSongPinyin, updateSongSections } from '../actions'
 import { fetchDeckAssets } from '../deck-assets'
 import { InlineError, Segmented, cx, pillClass } from '@/core/ui'
-import { SlideView, posterSrc, slideLabel } from './SlideView'
+import { SlideView, posterSrc, slideLabel, type CharPick } from './SlideView'
+import { PinyinPicker } from './PinyinPicker'
 import { FlowPanel, LyricsPanel, SettingsPanel, ThemePanel } from './SetlistPanels'
 import { typeName } from '../section-name'
 import { AddSongModal, ExportModal, type ExportRow } from './SetlistModals'
@@ -56,6 +57,8 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** The character whose pinyin is being corrected on the preview. */
+  const [pickAt, setPickAt] = useState<(CharPick & { where: string }) | null>(null)
   const [, start] = useTransition()
   const dragItem = useRef<number | null>(null)
 
@@ -90,6 +93,10 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const pi = Math.min(page, Math.max(0, pages.length - 1))
   const slide = pages[pi]
   const total = deck?.slides.length ?? 0
+  // a pick belongs to the slide it was made on; turning the page drops it
+  const here = `${song?.itemId}:${pi}`
+  const pick = pickAt?.where === here ? pickAt : null
+  const pickZh = pick && slide ? (pick.line < 0 ? slide.title : slide.lines[pick.line]?.zh) : undefined
   const pageCountOf = (songId: string) => (deck?.slides.filter((s) => s.songId === songId).length ?? 0)
 
   const editorTheme = song ? tunedTheme(getTheme(song.themeId), settings) : null
@@ -169,7 +176,12 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
 
   const onPinyin = (char: string, reading: string) => {
     if (!song) return
-    const overrides = { ...song.song.pinyinOverrides, [char]: reading }
+    applyOverrides({ ...song.song.pinyinOverrides, [char]: reading })
+  }
+
+  /** Save the song's pinyin fixes and re-read every line with them. */
+  const applyOverrides = (overrides: Record<string, string>) => {
+    if (!song) return
     const sections = song.song.sections.map((s) => ({ ...s, lines: s.lines.map((l) => ({ ...l, pinyin: annotateLine(l.zh, overrides) })) }))
     patchSong(index, (s) => ({ ...s, song: { ...s.song, pinyinOverrides: overrides, sections } }))
     start(async () => {
@@ -285,8 +297,8 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   /* ---------------------------------------------------------------- view */
 
   return (
-    <div className="flex h-screen min-h-[680px] flex-col bg-surface-3">
-      <header className="flex h-[60px] flex-none items-center gap-4 border-b border-line-3 bg-surface px-5 text-sm">
+    <div className="flex min-h-screen flex-col bg-surface-3 md:h-screen md:min-h-[640px]">
+      <header className="sticky top-0 z-20 flex h-[56px] flex-none items-center gap-3 border-b border-line-3 bg-surface px-4 text-sm md:static md:h-[60px] md:gap-4 md:px-5">
         <Link href="/worship" className="flex-none text-ink-4 transition-colors hover:text-ink">
           ‹ 工作台
         </Link>
@@ -309,9 +321,9 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[272px_340px_minmax(0,1fr)]">
+      <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[320px_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-[272px_340px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)]">
         {/* ---------------------------------------------------- 歌单 rail */}
-        <div className="scroll-thin flex max-h-[38vh] flex-col gap-1.5 overflow-auto border-b border-line-2 bg-surface-2 px-3.5 py-5 lg:max-h-none lg:border-b-0 lg:border-r">
+        <div className="scroll-thin flex flex-col gap-1.5 border-b border-line-2 bg-surface-2 px-3.5 py-4 md:col-start-1 md:row-start-1 md:max-h-[34vh] md:overflow-auto md:border-r xl:row-span-1 xl:max-h-none xl:border-b-0 xl:py-5">
           <div className="flex items-baseline justify-between px-1.5 pb-2">
             <h2 className="text-[17px] font-bold">歌单</h2>
             <span className="text-[13px] font-semibold text-accent">{songs.length} 首</span>
@@ -372,7 +384,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
         </div>
 
         {songs.length === 0 || !song || !editorTheme ? (
-          <div className="flex flex-col items-center justify-center gap-4 p-6 text-center lg:col-span-2">
+          <div className="flex flex-col items-center justify-center gap-4 p-6 text-center md:col-start-2 md:row-span-2 md:row-start-1 xl:col-start-2 xl:col-span-2 xl:row-span-1">
             <h2 className="text-[28px] font-bold">先加几首歌</h2>
             <p className="text-[15.5px] text-ink-4">从歌库挑，或者导入一首新歌。</p>
             <div className="mt-2 flex gap-2.5">
@@ -387,12 +399,12 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
         ) : (
           <>
             {/* ------------------------------------------------ song panel */}
-            <div className="flex min-h-0 flex-col border-b border-line-2 bg-surface lg:border-b-0 lg:border-r">
-              <div className="flex flex-col gap-3.5 px-5 pt-[18px]">
+            <div className="order-3 flex flex-col border-b border-line-2 bg-surface md:order-none md:col-start-1 md:row-start-2 md:min-h-0 md:border-b-0 md:border-r xl:col-start-2 xl:row-start-1">
+              <div className="flex flex-col gap-3.5 px-4 pt-4 md:px-5 md:pt-[18px]">
                 <h2 className="truncate text-[17px] font-bold">{song.song.title}</h2>
                 <Segmented ariaLabel="编辑哪一部分" size="sm" grow options={TABS} value={tab} onChange={setTab} />
               </div>
-              <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-3.5 overflow-auto px-5 pb-6 pt-[18px]">
+              <div className="scroll-thin flex flex-col gap-3.5 px-4 pb-6 pt-4 md:min-h-0 md:flex-1 md:overflow-auto md:px-5 md:pt-[18px]">
                 {error && <InlineError>{error}</InlineError>}
 
                 {tab === 'lyrics' && (
@@ -445,14 +457,37 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
             </div>
 
             {/* --------------------------------------------------- preview */}
-            <div className="flex min-w-0 flex-col items-center gap-4 px-6 pb-5 pt-9 md:px-11">
-              <div className="w-full max-w-[760px] overflow-hidden rounded-xl shadow-[0_24px_60px_rgba(0,0,0,.16)]">
+            <div className="order-2 flex min-w-0 flex-col items-center gap-3 border-b border-line-2 px-4 pb-4 pt-4 md:order-none md:col-start-2 md:row-span-2 md:row-start-1 md:gap-4 md:overflow-auto md:border-b-0 md:px-8 md:pb-5 md:pt-8 xl:col-start-3 xl:row-span-1 xl:px-11 xl:pt-9">
+              <div className="w-full max-w-[960px] overflow-hidden rounded-xl shadow-[0_24px_60px_rgba(0,0,0,.16)]">
                 {slide && deck ? (
-                  <SlideView slide={slide} theme={slideTheme(deck, slide)} frameClassName="" />
+                  <SlideView
+                    slide={slide}
+                    theme={slideTheme(deck, slide)}
+                    frameClassName=""
+                    onPickChar={settings.pinyin ? (p) => setPickAt({ ...p, where: here }) : undefined}
+                    picked={pick}
+                  />
                 ) : (
                   <div className="grid aspect-video place-items-center bg-surface text-sm text-ink-5">这首歌的顺序是空的</div>
                 )}
               </div>
+
+              {pick && pickZh && song ? (
+                <div className="w-full max-w-[960px]">
+                  <PinyinPicker
+                    key={`${here}:${pick.line}:${pick.at}`}
+                    zh={pickZh}
+                    at={pick.at}
+                    overrides={song.song.pinyinOverrides}
+                    onChange={applyOverrides}
+                    onClose={() => setPickAt(null)}
+                  />
+                </div>
+              ) : (
+                settings.pinyin && slide && (slide.kind === 'lyrics' || slide.kind === 'title') && (
+                  <p className="text-[12.5px] text-ink-5">拼音不对？点投影片上的字就能改</p>
+                )
+              )}
 
               <div className="flex items-center gap-3.5 text-[13px] text-ink-5">
                 <button
@@ -476,7 +511,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
                 </button>
               </div>
 
-              <div className="scroll-thin mt-auto flex w-full max-w-[760px] gap-2 overflow-x-auto p-1 pb-1.5">
+              <div className="scroll-thin flex w-full max-w-[960px] gap-2 overflow-x-auto p-1 pb-1.5">
                 {deck &&
                   pages.map((p, i) => (
                     <button

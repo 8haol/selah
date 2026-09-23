@@ -207,7 +207,7 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
                 if (tab === 'sheet') void recognize(files)
                 else if (files[0]) void readFile(files[0])
               }}
-              className="flex min-h-[440px] flex-1 flex-col items-center justify-center gap-3.5 rounded-2xl border-[1.5px] border-dashed border-line-strong p-6 text-center"
+              className="flex min-h-[280px] flex-1 flex-col items-center justify-center gap-3.5 rounded-2xl md:min-h-[440px] border-[1.5px] border-dashed border-line-strong p-6 text-center"
             >
               <span className="flex size-12 items-center justify-center rounded-xl bg-accent-soft">
                 <span className="size-4 rounded-[4px] border-2 border-accent" />

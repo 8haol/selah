@@ -29,7 +29,33 @@ const CHURCH_WORDS: Array<[string, string[]]> = [
   ['数算', ['shǔ', 'suàn']],   // 数算主恩 — to count over, not shù
   ['數算', ['shǔ', 'suàn']],
   ['應許', ['yīng', 'xǔ']],     // the traditional form loses the tone on 許
+  ['得着', ['dé', 'zháo']],     // 得着能力 — to obtain, not the aspect particle
+  ['得著', ['dé', 'zháo']],
+  ['睡着', ['shuì', 'zháo']],
+  ['睡著', ['shuì', 'zháo']],
 ]
+
+/**
+ * In traditional-script hymns 著 is almost always the character simplified
+ * script writes 着 (爱著你, 带著, 得著), which pinyin-pro reads zhù. Read it as
+ * 着 unless it sits in one of the few words that really are zhù.
+ */
+const ZHU_WORDS = /显著|顯著|著名|著作|著述|名著|原著|巨著|编著|編著|昭著|卓著|著称|著稱/g
+
+function asZhe(zh: string): string {
+  if (!zh.includes('著')) return zh
+  const keep = new Set<number>()
+  for (const m of zh.matchAll(ZHU_WORDS)) {
+    const at = [...zh.slice(0, m.index)].length
+    ;[...m[0]].forEach((c, k) => { if (c === '著') keep.add(at + k) })
+  }
+  return [...zh].map((c, i) => (c === '著' && !keep.has(i) ? '着' : c)).join('')
+}
+
+/** Key for a reading that applies to one spot only: this character, at this index, in this line. */
+export function spotKey(zh: string, index: number): string {
+  return `${zh.trimEnd()}|${index}`
+}
 
 export function isChinese(char: string): boolean {
   return CJK.test(char)
@@ -49,7 +75,7 @@ function applyChurchWords(chars: string[], out: string[]): void {
 
 export function annotateLine(zh: string, overrides: Record<string, string> = {}): string[] {
   const chars = [...zh]
-  const all = pinyin(zh, {
+  const all = pinyin(asZhe(zh), {
     type: 'all',
     toneType: 'symbol',
     nonZh: 'spaced',
@@ -58,17 +84,18 @@ export function annotateLine(zh: string, overrides: Record<string, string> = {})
   const aligned = all.length === chars.length
   const out = chars.map((char, index) => {
     if (!isChinese(char)) return ''
-    const base = aligned ? (all[index]?.pinyin ?? '') : pinyin(char, { toneType: 'symbol' })
+    const base = aligned ? (all[index]?.pinyin ?? '') : pinyin(asZhe(char), { toneType: 'symbol' })
     return CHURCH_CHAR_READINGS[char] ?? base
   })
 
   applyChurchWords(chars, out)
 
   // A song's own overrides are the last word — they beat the church defaults too.
+  // One spot (this character in this line) beats the character everywhere.
   return out.map((reading, index) => {
     const char = chars[index]!
     if (!isChinese(char)) return ''
-    return overrides[char] ?? reading
+    return overrides[spotKey(zh, index)] ?? overrides[char] ?? reading
   })
 }
 

@@ -100,6 +100,9 @@ export function blocksFromTagged(sections: Array<{ tag: string; lines: string[] 
   return { blocks, flow: flow.length ? flow : blocks.map((b) => b.key) }
 }
 
+/** Same words, ignoring spacing and punctuation. */
+const norm = (text: string) => text.replace(/[\s，。！？、；：,.!?;:]/g, '')
+
 /**
  * Pasted lyrics as blocks. A header line ("[副歌]", "Chorus:", "V2") starts a
  * block, and so does a blank line. A block that repeats an earlier one — the
@@ -128,13 +131,13 @@ export function blocksFromText(raw: string): { blocks: LyricBlock[]; flow: strin
   const byTag = new Map<string, string>()
   for (const c of chunks) {
     const text = c.lines.join('\n')
-    const again = text ? byText.get(text.replace(/\s/g, '')) : c.tag ? byTag.get(c.tag) : undefined
+    const again = text ? byText.get(norm(text)) : c.tag ? byTag.get(c.tag) : undefined
     if (again) { flow.push(again); continue }
     if (!text) continue
     const block = newBlock(c.tag ? typeOfTag(c.tag) : 'verse', text)
     blocks.push(block)
     flow.push(block.key)
-    byText.set(text.replace(/\s/g, ''), block.key)
+    byText.set(norm(text), block.key)
     if (c.tag) byTag.set(c.tag, block.key)
   }
   return { blocks, flow }
