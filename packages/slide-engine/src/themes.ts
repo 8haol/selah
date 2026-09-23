@@ -89,20 +89,20 @@ export const BUILTIN_THEMES: Theme[] = [
   },
   // --- 动态主题 (video) ---
   {
-    id: 'flow-deep', name: '流光 · 深海', description: '青蓝色丝绸般的流光缓缓起伏，循环播放。',
-    background: { kind: 'video', src: '/themes/video/flow-deep.mp4', poster: '/themes/video/flow-deep.jpg', approxColor: '#061d2f', durationMs: 24_000 },
+    id: 'flow-deep', name: '流光 · 深海', description: '青蓝色流光在深海底色上缓缓漂移，循环播放。',
+    background: { kind: 'video', src: '/themes/video/flow-deep.mp4', poster: '/themes/video/flow-deep.jpg', approxColor: '#09324b', durationMs: 24_000 },
     colors: { zh: '#FFFFFF', pinyin: '#FFFFFF', title: '#FFFFFF', rule: '#5FD6E3', badge: '#D9FAFD', meta: '#9ED3DA' },
     shadow: dark('#031521', 0.6), ...base,
   },
   {
-    id: 'flow-sanctuary', name: '流光 · 圣殿', description: '紫红与琥珀色的丝绸流光交织，庄重温暖，循环播放。',
-    background: { kind: 'video', src: '/themes/video/flow-sanctuary.mp4', poster: '/themes/video/flow-sanctuary.jpg', approxColor: '#220c21', durationMs: 24_000 },
+    id: 'flow-sanctuary', name: '流光 · 圣殿', description: '紫红与琥珀色流光交织，庄重温暖，循环播放。',
+    background: { kind: 'video', src: '/themes/video/flow-sanctuary.mp4', poster: '/themes/video/flow-sanctuary.jpg', approxColor: '#3f1837', durationMs: 24_000 },
     colors: { zh: '#FFF8EC', pinyin: '#FFF8EC', title: '#FFF8EC', rule: '#E3B762', badge: '#F7E3B0', meta: '#D9C39A' },
     shadow: dark('#1A0A1E', 0.6), ...base,
   },
   {
-    id: 'clouds', name: '云层 · 夜空', description: '月光下的层云缓缓飘过，云边被月色照亮，循环播放。',
-    background: { kind: 'video', src: '/themes/video/clouds.mp4', poster: '/themes/video/clouds.jpg', approxColor: '#151c32', durationMs: 24_000 },
+    id: 'clouds', name: '流光 · 夜空', description: '靛蓝与淡紫的流光在夜色中缓缓漂移，循环播放。',
+    background: { kind: 'video', src: '/themes/video/clouds.mp4', poster: '/themes/video/clouds.jpg', approxColor: '#141b47', durationMs: 24_000 },
     colors: { zh: '#FFFFFF', pinyin: '#FFFFFF', title: '#FFFFFF', rule: '#8FA3FF', badge: '#DCE3FF', meta: '#AAB4E6' },
     shadow: dark('#02040C', 0.65), ...base,
   },

@@ -53,66 +53,74 @@ const add = (c, col, k) => { c[0] += col[0] * k; c[1] += col[1] * k; c[2] += col
 // `speed` is noise units per second; the circle radius follows from it.
 
 const modes = {
-  // Silk: a sheet of broad ribbons — contour bands of a slowly warped height
-  // field — with a narrow sheen along each fold, the way light catches satin.
-  flow(theme) {
-    const { fbm4 } = makeNoise(theme.seed)
-    const tone = ramp(theme.palette)
-    const hi = mixc(lin(theme.palette[3]), lin(theme.palette[4]), 0.5)
-    return (u, v, cz, cw) => {
-      const x = u * A, y = v
-      const w1 = fbm4(x * 0.55 + 3.1, y * 0.7, cz, cw, 3)
-      const w2 = fbm4(x * 0.9 - 1.7, y * 1.1 + 5.3, cz * 1.3 + 2.1, cw * 1.3 - 1.3, 3)
-      // a gently tilted sheet whose height is bent by the two warps
-      const h = y * 1.35 - x * 0.18 + (w1 - 0.5) * 1.3 + (w2 - 0.5) * 0.35
-      const phase = h * Math.PI * 2 * 2.4
-      const fold = 0.5 + 0.5 * Math.sin(phase)
-      const body = fold ** 2.2
-      const sheen = Math.max(0, Math.sin(phase + 0.7)) ** 24
-      // the fabric crosses the lower-middle of the frame and fades out at the top
-      const band = gauss(y - (0.7 + 0.1 * (w1 - 0.5)), 0.3)
-      const col = [...tone(clamp01((0.1 + body * 0.48) * band))]
-      add(col, hi, sheen * band * band * 0.1)
-      return col
+  // 流光: a line-for-line port of the WebGL spike
+  // (spikes/pptx-pinyin/out/video/flow-webgl.html) — domain-warped 3D value
+  // noise drifting at t = T * 0.06, bright ribbon streaks across the middle
+  // band, a soft vignette. It works in sRGB like the shader does, so the theme
+  // sets `srgb: true`. The shader runs forever; to loop, the last `fade`
+  // seconds cross-fade into the field one loop earlier, so frame N meets
+  // frame 0 exactly (out(L) = S(0) = out(0)).
+  glow(theme) {
+    const pal = theme.palette.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255))
+    const fract = (x) => x - Math.floor(x)
+    const hash = (x, y, z) => {
+      x = fract(x * 0.3183099 + 0.1) * 17; y = fract(y * 0.3183099 + 0.1) * 17; z = fract(z * 0.3183099 + 0.1) * 17
+      return fract(x * y * z * (x + y + z))
     }
-  },
-
-  // Two decks of cloud drifting at different speeds, lit from a moon at the
-  // top right: brightness comes from how much thinner the cloud is toward the
-  // light, which gives lit rims and shadowed bellies instead of flat puffs.
-  clouds(theme) {
-    const { fbm4 } = makeNoise(theme.seed)
-    const tone = ramp(theme.palette)
-    const moonC = lin('#E4EAFF')
-    const mx = 0.8 * A, my = 0.17
-    const density = (x, y, cz, cw, th, k) => {
-      const drift = k === 0 ? 0.3 * Math.sin(th) : -0.2 * Math.sin(th)
-      const f = k === 0 ? 0.95 : 1.7
-      const n = fbm4(x * f * 0.8 + drift + k * 9.1, y * f * 2.6 + k * 4.4, cz * (1 + k * 0.2), cw * (1 + k * 0.2) + k * 3, 4)
-      return Math.max(0, (n - 0.44) / 0.56)
+    const lerp = (a, b, t) => a + (b - a) * t
+    const noise = (x, y, z) => {
+      const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z)
+      let fx = x - ix, fy = y - iy, fz = z - iz
+      fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz)
+      return lerp(
+        lerp(lerp(hash(ix, iy, iz), hash(ix + 1, iy, iz), fx), lerp(hash(ix, iy + 1, iz), hash(ix + 1, iy + 1, iz), fx), fy),
+        lerp(lerp(hash(ix, iy, iz + 1), hash(ix + 1, iy, iz + 1), fx), lerp(hash(ix, iy + 1, iz + 1), hash(ix + 1, iy + 1, iz + 1), fx), fy),
+        fz,
+      )
     }
+    const fbm = (x, y, z) => {
+      let s = 0, a = 0.5
+      for (let i = 0; i < 5; i += 1) { s += a * noise(x, y, z); x *= 2.03; y *= 2.03; z *= 2.03; a *= 0.5 }
+      return s
+    }
+    const palette = (v) => {
+      const t = clamp01(v) * 4
+      const i = Math.min(3, Math.floor(t)), f = t - i
+      const a = pal[i], b = pal[i + 1]
+      return [lerp(a[0], b[0], f), lerp(a[1], b[1], f), lerp(a[2], b[2], f)]
+    }
+    const field = (u, v, T) => {
+      const t = T * 0.06
+      const qx = fbm(u * 1.6 + 3.1, v * 2.2, t)
+      const qy = fbm(u * 1.6 - 1.7, v * 2.2 + 5.3, t + 2.1)
+      const wx = u * 1.1 + (qx - 0.5) * 1.4, wy = v * 3.6 + (qy - 0.5) * 1.1
+      const n = (fbm(wx, wy, t * 1.3 + 7.7) - 0.5) * 1.7 + 0.5
+      const sx = u * 0.7 + (qx - 0.5) * 0.9 + 11.3, sy = v * 7.5 + (qy - 0.5) * 2.4 + 2.9
+      const rib = fbm(sx, sy, t * 0.9 - 3.3)
+      const streak = Math.max(0, (rib - 0.52) / 0.48) ** 2.2 * 0.9
+      const band = Math.exp(-(((v - 0.58) / 0.45) ** 2))
+      return Math.min(1, Math.max(0, n) ** 1.5 * (0.5 + 0.5 * band) * 0.85 + streak * band)
+    }
+    const offset = theme.offset ?? 0
+    const fade = theme.fade ?? 6
+    // A plain mix of two independent fields halves their contrast mid-fade (the
+    // clip visibly dims), so the blend is variance-preserving around the
+    // field's mean: deviations are mixed and rescaled by 1/√((1−w)² + w²).
+    const random = rng(4242)
+    let mean = 0
+    for (let i = 0; i < 4000; i += 1) mean += field(random(), random(), random() * 400)
+    mean /= 4000
     return (u, v, cz, cw, th) => {
-      const x = u * A, y = v
-      const ldx = mx - x, ldy = my - y
-      const ll = Math.hypot(ldx, ldy) || 1
-      const ex = (ldx / ll) * 0.05, ey = (ldy / ll) * 0.05
-      const moonD = Math.hypot(x - mx, y - my)
-      const col = [...tone(0.08 + 0.1 * (1 - v))]
-      add(col, moonC, gauss(moonD, 0.3) * 0.07)
-      let cover = 0
-      for (let k = 1; k >= 0; k -= 1) {
-        const d = density(x, y, cz, cw, th, k)
-        if (d <= 0) continue
-        const lit = clamp01((d - density(x + ex, y + ey, cz, cw, th, k)) * 3 + 0.35)
-        const a = clamp01(d * 1.8) * (k === 0 ? 0.9 : 0.55)
-        const glow = gauss(moonD, 0.55)
-        const c = tone(clamp01(0.22 + lit * (0.3 + 0.5 * glow)))
-        for (let i = 0; i < 3; i += 1) col[i] = col[i] * (1 - a) + c[i] * a
-        cover = Math.max(cover, a)
+      const T = (th / (Math.PI * 2)) * SECONDS
+      let g = field(u, v, T + offset)
+      if (T > SECONDS - fade) {
+        const w = smoothstep(SECONDS - fade, SECONDS, T)
+        const other = field(u, v, T + offset - SECONDS)
+        g = mean + ((g - mean) * (1 - w) + (other - mean) * w) / Math.hypot(1 - w, w)
       }
-      // the moon glows through thin cloud rather than being cut out by it
-      add(col, moonC, gauss(moonD, 0.045) * 0.55 * (1 - cover * 0.5) + gauss(moonD, 0.16) * 0.06)
-      return col
+      const col = palette(g)
+      const vg = 1 - 0.35 * (Math.hypot(u - 0.5, v - 0.5) * 1.3) ** 2
+      return [col[0] * vg, col[1] * vg, col[2] * vg]
     }
   },
 
@@ -189,9 +197,13 @@ const modes = {
 
 // --- themes -----------------------------------------------------------------
 const themes = [
-  { id: 'flow-deep', mode: 'flow', seed: 3, speed: 0.05, palette: ['#030C19', '#072741', '#0B4D66', '#1E9BAA', '#A8F0EC'] },
-  { id: 'flow-sanctuary', mode: 'flow', seed: 5, speed: 0.05, palette: ['#110613', '#2E1030', '#62244D', '#B8683F', '#FFDDA0'] },
-  { id: 'clouds', mode: 'clouds', seed: 7, speed: 0.045, crf: '27', palette: ['#04070F', '#0A1228', '#1C2A52', '#56689C', '#C9D3F0'] },
+  // palettes are the spike's own (keys 1, 2 and 3 in flow-webgl.html). The
+  // field breathes over minutes, so `offset` picks a 24 s window that stays
+  // lively throughout without a highlight bright enough to swallow white
+  // lyrics (searched on the text zone's per-second spread and 95th percentile).
+  { id: 'flow-deep', mode: 'glow', srgb: true, scrim: 1, crf: '27', offset: 228, palette: ['#04101F', '#0A2E4C', '#0E5F7A', '#22B3BF', '#B8F5F2'] },
+  { id: 'flow-sanctuary', mode: 'glow', srgb: true, scrim: 1, crf: '27', offset: 780, palette: ['#150818', '#3A1638', '#7A2E5A', '#D98A4F', '#FFE3A8'] },
+  { id: 'clouds', mode: 'glow', srgb: true, scrim: 1, crf: '27', offset: 256, palette: ['#04060E', '#0A1030', '#22307A', '#7E6BE0', '#D7CCFF'] },
   { id: 'rays-motion', mode: 'rays', seed: 9, speed: 0.06, palette: ['#0E1720', '#1A2A36', '#5A4D34', '#E9C877', '#FFF3D0'] },
   { id: 'bokeh', mode: 'bokeh', seed: 11, speed: 0, palette: ['#080C1A', '#10152B', '#1A1F42', '#FFD27A', '#FFF3D0'] },
 ]
@@ -208,8 +220,11 @@ function shadeFrame(sampler, theme, f) {
     for (let x = 0; x < RW; x += 1) {
       const u = (x + 0.5) / RW
       const c = sampler(u, v, cz, cw, th)
-      const k = scrim(u, v, 0.7)
-      for (let i = 0; i < 3; i += 1) buf[p++] = Math.max(0, Math.min(255, Math.round(toSrgb(clamp01(c[i] * k)) * 255)))
+      const k = scrim(u, v, theme.scrim ?? 0.7)
+      for (let i = 0; i < 3; i += 1) {
+        const x = clamp01(c[i] * k)
+        buf[p++] = Math.max(0, Math.min(255, Math.round((theme.srgb ? x : toSrgb(x)) * 255)))
+      }
     }
   }
   return buf
