@@ -2,7 +2,7 @@ import PptxGenJS from 'pptxgenjs'
 import JSZip from 'jszip'
 import type { SlideDeck, Theme } from './types'
 import { getTheme, slideTheme } from './themes'
-import { layoutSlide, layoutTitle, rowHeightPt, CONTENT_X_PT, CONTENT_W_PT, SLIDE_W_PT } from './layout'
+import { layoutMeta, layoutSlide, layoutTitle, outlinePt, badgeWidthPt, rowHeightPt, BADGE, CONTENT_X_PT, CONTENT_W_PT, META_LINE, META_TOP_PT, SLIDE_W_PT } from './layout'
 import { dedupeMedia, injectVideoTiming } from './pptx-post'
 
 export interface ThemeAssets {
@@ -92,6 +92,10 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
     const themeId = slide.themeId ?? deck.themeId
     const theme = slideTheme(deck, slide)
     const newShadow = () => shadowOf(theme)
+    const stroke = (sizePt: number) => {
+      const o = outlinePt(theme, sizePt)
+      return o ? { outline: { color: hex(o.color), size: o.widthPt } } : {}
+    }
     const { background, video } = bg.get(themeId)!
     const s = pptx.addSlide()
     s.background = background
@@ -107,9 +111,9 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
         const bottom = 3.62 * 72
         let x = (SLIDE_W_PT - t.widthPt) / 2
         for (const [i, cell] of t.cells.entries()) {
-          const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.title, fontSize: t.zhPt, bold: true, color: hex(theme.colors.title) } }
+          const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.title, fontSize: t.zhPt, bold: true, color: hex(theme.colors.title), ...stroke(t.zhPt) } }
           const runs = cell.py
-            ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: t.pyPt, color: hex(theme.colors.pinyin), breakLine: true } }, zhRun]
+            ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: t.pyPt, color: hex(theme.colors.pinyin), breakLine: true, ...stroke(t.pyPt) } }, zhRun]
             : [zhRun]
           s.addText(runs, { x: inch(x), y: inch(bottom - h), w: inch(cell.widthPt), h: inch(h), margin: 0, align: 'center', valign: 'bottom', fit: 'none', wrap: false, shadow: newShadow() })
           x += cell.widthPt + (cell.gapAfter && i < t.cells.length - 1 ? 0.3 * t.zhPt : 0)
@@ -120,28 +124,38 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
         s.addText(slide.title ?? '', { x: 0.5, y: 2.32, w: SW - 1, h: 1.35, fontFace: theme.fonts.title, fontSize: theme.sizes.title, bold: true, color: hex(theme.colors.title), align: 'center', valign: 'middle', charSpacing: 6, shadow: newShadow(), margin: 0 })
       }
       s.addShape(pptx.ShapeType.rect, { x: SW / 2 - 1.15, y: 3.76, w: 2.3, h: 0.035, fill: { color: hex(theme.colors.rule) }, line: { color: hex(theme.colors.rule), width: 0 } })
-      if (slide.meta) s.addText(slide.meta.toUpperCase(), { x: 0.5, y: 4.15, w: SW - 1, h: 0.4, fontFace: theme.fonts.pinyin, fontSize: theme.sizes.meta, color: hex(theme.colors.meta), align: 'center', valign: 'middle', charSpacing: 4, margin: 0 })
+      if (slide.meta) {
+        // shrinks and wraps onto a second line rather than run off the slide
+        const m = layoutMeta(slide.meta, theme)
+        s.addText(m.lines.map((text, i) => ({ text, options: { breakLine: i < m.lines.length - 1 } })), {
+          x: inch(CONTENT_X_PT), y: inch(META_TOP_PT), w: inch(CONTENT_W_PT), h: inch(m.lines.length * m.pt * META_LINE),
+          fontFace: theme.fonts.pinyin, fontSize: m.pt, color: hex(theme.colors.meta), align: 'center', valign: 'top',
+          charSpacing: 0.22 * m.pt, lineSpacingMultiple: 1.1, margin: 0, wrap: false, fit: 'none',
+        })
+      }
       continue
     }
 
     if (slide.sectionLabel) {
       s.addText(slide.sectionLabel, {
-        x: 0.5, y: 0.38, w: 1.55, h: 0.36, fontFace: theme.fonts.pinyin, fontSize: theme.sizes.badge, color: hex(theme.colors.badge), align: 'center', valign: 'middle', charSpacing: 5, margin: 0,
-        shape: pptx.ShapeType.roundRect, rectRadius: 0.18,
+        x: inch(BADGE.leftPt), y: inch(BADGE.topPt), w: inch(badgeWidthPt(slide.sectionLabel, theme.sizes.badge)), h: inch(BADGE.heightPt),
+        fontFace: theme.fonts.pinyin, fontSize: theme.sizes.badge, color: hex(theme.colors.badge), align: 'center', valign: 'middle',
+        charSpacing: BADGE.tracking * theme.sizes.badge, margin: 0,
+        shape: pptx.ShapeType.roundRect, rectRadius: inch(BADGE.heightPt / 2),
         fill: { color: hex(theme.colors.badge), transparency: 88 }, line: { color: hex(theme.colors.badge), width: 1, transparency: 60 },
       })
     }
 
-    const lay = layoutSlide(slide.lines, theme)
+    const lay = layoutSlide(slide.lines, theme, slide.fit)
     lay.rows.forEach((row, ri) => {
       const y = row.topPt ?? lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)
       const h = row.heightPt ?? lay.rowHeightPt
       // a single cell can be wider than the content box; never start off the left edge
       let x = Math.max(CONTENT_X_PT, CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2)
       for (const [cellIndex, cell] of row.cells.entries()) {
-        const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.zh, fontSize: lay.zhPt, bold: true, color: hex(theme.colors.zh) } }
+        const zhRun = { text: cell.zh, options: { fontFace: theme.fonts.zh, fontSize: lay.zhPt, bold: true, color: hex(theme.colors.zh), ...stroke(lay.zhPt) } }
         const runs = cell.py
-          ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: lay.pyPt, color: hex(theme.colors.pinyin), breakLine: true } }, zhRun]
+          ? [{ text: cell.py, options: { fontFace: theme.fonts.pinyin, fontSize: lay.pyPt, color: hex(theme.colors.pinyin), breakLine: true, ...stroke(lay.pyPt) } }, zhRun]
           : [zhRun]
         // `shadow` only takes effect on the text box — pptxgenjs drops it from a
         // run's options, which is why exported lyrics used to carry none at all.

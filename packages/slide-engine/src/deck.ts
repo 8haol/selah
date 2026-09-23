@@ -1,9 +1,9 @@
-import type { LyricLine, Slide, SlideDeck, Song, Theme } from './types'
+import type { LineSpacing, LyricLine, OutlineWeight, Slide, SlideDeck, Song, TextAnchor, Theme } from './types'
 import { expandFlow } from './flow'
 import { annotateSong, annotateLine, joinPinyin, stripPinyin } from './pinyin'
 import { sectionLabel } from './lyrics-parser'
 import { getTheme, tunedTheme } from './themes'
-import { countRows } from './layout'
+import { countRows, songFit } from './layout'
 
 export interface BuildDeckInput {
   songs: Song[]
@@ -22,6 +22,12 @@ export interface BuildDeckInput {
   titleSlides?: boolean
   /** 歌与歌之间空白页. Default true. */
   blankBetweenSongs?: boolean
+  /** 行间距. Default normal. */
+  lineSpacing?: LineSpacing
+  /** 字体描边. Default none. */
+  outline?: OutlineWeight
+  /** 文字位置. Default top: a song's first row stays put from slide to slide. */
+  anchor?: TextAnchor
 }
 
 /** The small line under a title. The key is for the band's charts, not the projector. */
@@ -45,7 +51,13 @@ export function paginateLines(lines: LyricLine[], theme: Theme): LyricLine[][] {
 
 export function buildDeck(input: BuildDeckInput): SlideDeck {
   const deckTheme = getTheme(input.themeId)
-  const tune = { linesPerSlide: input.linesPerSlide, bigText: input.bigText }
+  const display = {
+    ...(input.linesPerSlide ? { linesPerSlide: input.linesPerSlide } : {}),
+    ...(input.bigText ? { bigText: input.bigText } : {}),
+    ...(input.lineSpacing && input.lineSpacing !== 'normal' ? { lineSpacing: input.lineSpacing } : {}),
+    ...(input.outline && input.outline !== 'none' ? { outline: input.outline } : {}),
+  }
+  const tune = display
   const showPinyin = input.pinyin !== false
   const withTitles = input.titleSlides !== false
   const slides: Slide[] = []
@@ -72,6 +84,7 @@ export function buildDeck(input: BuildDeckInput): SlideDeck {
         meta: songMeta(song), lines: [],
       })
     }
+    const first = slides.length
     expandFlow(song, flow).forEach((step, flowIndex) => {
       if (step.kind === 'blank') { slides.push({ kind: 'blank', themeId, songId: song.id, sectionLabel: step.label, flowIndex, lines: [] }); return }
       const section = song.sections.find((s) => s.id === step.sectionId)!
@@ -79,6 +92,10 @@ export function buildDeck(input: BuildDeckInput): SlideDeck {
         slides.push({ kind: 'lyrics', themeId, songId: song.id, sectionId: section.id, flowIndex, sectionLabel: sectionLabel(section.id), lines: lines.map(py) })
       }
     })
+    // one size, and one first-row height, for every lyrics slide of the song
+    const own = slides.slice(first).filter((s) => s.kind === 'lyrics')
+    const fit = songFit(own.map((s) => s.lines), theme, input.anchor)
+    if (fit) for (const s of own) s.fit = fit
   })
 
   // A single-theme deck stays byte-identical to what it was before per-song
@@ -91,7 +108,7 @@ export function buildDeck(input: BuildDeckInput): SlideDeck {
       songIds: input.songs.map((s) => s.id), flows,
       generatedAt: new Date().toISOString(),
       ...(mixed ? { themes } : {}),
-      ...(input.linesPerSlide || input.bigText ? { display: { linesPerSlide: input.linesPerSlide, bigText: input.bigText } } : {}),
+      ...(Object.keys(display).length ? { display } : {}),
     },
   }
 }

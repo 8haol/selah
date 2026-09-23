@@ -1,8 +1,9 @@
-import type { Slide, SlideDeck, Theme } from './types'
+import type { LineSpacing, OutlineWeight, Slide, SlideDeck, Theme } from './types'
+import { luminance } from './contrast'
 
 const base = {
   fonts: { zh: 'SimHei', pinyin: 'Arial', title: 'KaiTi' },
-  sizes: { zh: 45, pinyin: 35, title: 84, titlePinyin: 30, badge: 16, meta: 18 },
+  sizes: { zh: 45, pinyin: 35, title: 84, titlePinyin: 30, badge: 11, meta: 18 },
   maxLinesPerSlide: 4,
 } as const
 
@@ -137,11 +138,26 @@ export function getTheme(id: string): Theme {
  * per-service display settings (每页行数 / 字号). Returns `base` untouched when
  * nothing differs, so single-theme decks keep object identity.
  */
-export function tunedTheme(base: Theme, opts: { linesPerSlide?: number; bigText?: boolean } = {}): Theme {
+export interface ThemeTuning {
+  linesPerSlide?: number
+  bigText?: boolean
+  lineSpacing?: LineSpacing
+  outline?: OutlineWeight
+}
+
+const ROW_GAPS: Record<LineSpacing, number> = { tight: 8, normal: 16, loose: 28 }
+const OUTLINE_RATIOS: Record<Exclude<OutlineWeight, 'none'>, number> = { thin: 0.035, thick: 0.07 }
+
+export function tunedTheme(base: Theme, opts: ThemeTuning = {}): Theme {
   const maxLinesPerSlide = opts.linesPerSlide ?? base.maxLinesPerSlide
   const textScale = opts.bigText ? 1.15 : 1
-  if (maxLinesPerSlide === base.maxLinesPerSlide && textScale === (base.textScale ?? 1)) return base
-  return { ...base, maxLinesPerSlide, textScale }
+  const rowGap = opts.lineSpacing ? ROW_GAPS[opts.lineSpacing] : base.rowGap
+  // the stroke is whichever of black or white sits furthest from the lyric colour
+  const outline = opts.outline && opts.outline !== 'none'
+    ? { color: luminance(base.colors.zh) > 0.4 ? '#000000' : '#FFFFFF', ratio: OUTLINE_RATIOS[opts.outline] }
+    : base.outline
+  if (maxLinesPerSlide === base.maxLinesPerSlide && textScale === (base.textScale ?? 1) && rowGap === base.rowGap && outline === base.outline) return base
+  return { ...base, maxLinesPerSlide, textScale, rowGap, outline }
 }
 
 /** How the 主题 gallery groups a theme. Video themes loop; the rest are stills. */

@@ -48,6 +48,24 @@ export interface Theme {
    * theme that never sets it lays out exactly as it did before.
    */
   textScale?: number
+  /** Gap between rows at scale 1, in pt. Undefined reads as 16 (标准). */
+  rowGap?: number
+  /** 字体描边: stroke colour and width as a fraction of the character size. */
+  outline?: { color: string; ratio: number } | null
+}
+
+export type LineSpacing = 'tight' | 'normal' | 'loose'
+export type OutlineWeight = 'none' | 'thin' | 'thick'
+/** `top` pins a song's first row to one height; `center` centres every slide on its own. */
+export type TextAnchor = 'top' | 'center'
+
+/** A song-wide layout decision, so every slide of the song sets the same size. */
+export interface SlideFit {
+  scale: number
+  /** Row gap at scale 1. */
+  rowGap: number
+  /** The first row's top. Absent: centre the slide on its own. */
+  topPt?: number
 }
 
 export type SlideKind = 'title' | 'lyrics' | 'blank'
@@ -73,6 +91,8 @@ export interface Slide {
   titleLine?: LyricLine
   meta?: string
   lines: LyricLine[]
+  /** Lyrics slides built since per-song sizing. Older decks lay out slide by slide. */
+  fit?: SlideFit
 }
 
 export interface SlideDeck {
@@ -89,6 +109,6 @@ export interface SlideDeck {
      * The setlist's display settings, kept on the deck so the export lays out
      * exactly like the preview it was generated from.
      */
-    display?: { linesPerSlide?: number; bigText?: boolean }
+    display?: { linesPerSlide?: number; bigText?: boolean; lineSpacing?: LineSpacing; outline?: OutlineWeight }
   }
 }

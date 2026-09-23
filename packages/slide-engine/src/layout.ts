@@ -1,13 +1,14 @@
-import type { LyricLine, Theme } from './types'
+import type { LyricLine, SlideFit, TextAnchor, Theme } from './types'
 import { isChinese } from './pinyin'
 
 export const SLIDE_W_PT = 720
 export const SLIDE_H_PT = 405
 export const CONTENT_X_PT = 36
 export const CONTENT_W_PT = 648
-/** Below the section badge (27–53pt), so a full slide never runs into it. */
-export const CONTENT_TOP_PT = 64
-export const CONTENT_BOTTOM_PT = 393
+/** Below the section badge (18–37pt), so a full slide never runs into it. */
+export const CONTENT_TOP_PT = 40
+// as far from the bottom as the top is from the top, so a full slide centres on the picture
+export const CONTENT_BOTTOM_PT = SLIDE_H_PT - CONTENT_TOP_PT
 export const MAX_SCALE = 64 / 45
 /** Floor for the emergency shrink: below this, projected lyrics stop being readable. */
 export const MIN_SCALE = 0.6
@@ -15,6 +16,9 @@ const SCALE_STEP = 0.02
 /** Pinyin at half the character's size: an annotation, not a second lyric line. */
 export const PINYIN_RATIO = 0.5
 const BASE_ZH_PT = 45
+const DEFAULT_ROW_GAP = 16
+/** Lyrics centre on the middle of the picture, not of the space under the badge. */
+const MIDDLE_PT = SLIDE_H_PT / 2
 
 /** `at` is the index in `[...line.zh]` of the cell's first character. */
 export interface Cell { zh: string; py: string; widthPt: number; gapAfter?: boolean; at?: number }
@@ -161,15 +165,14 @@ const hasChinese = (row: Row) => row.cells.some((cell) => [...cell.zh].some(isCh
 
 function pyFor(zhPt: number): number { return Math.round(zhPt * PINYIN_RATIO * 2) / 2 }
 
-function attempt(lines: LyricLine[], scale: number, gap: number): SlideLayout {
+function attempt(lines: LyricLine[], scale: number, gap: number, fixedTop?: number): SlideLayout {
   const zhPt = BASE_ZH_PT * scale
   const pyPt = pyFor(zhPt)
   const rh = rowHeightPt(zhPt, pyPt)
   const rowGapPt = gap * scale
   const wrapped = lines.flatMap((l, line) => wrapLine(l, zhPt, pyPt).map((row) => ({ ...row, line, heightPt: hasChinese(row) ? rh : bareRowHeightPt(zhPt) })))
   const blockHeightPt = wrapped.reduce((h, row) => h + row.heightPt, 0) + Math.max(0, wrapped.length - 1) * rowGapPt
-  const contentH = CONTENT_BOTTOM_PT - CONTENT_TOP_PT
-  const topPt = Math.max(CONTENT_TOP_PT, CONTENT_TOP_PT + (contentH - blockHeightPt) / 2)
+  const topPt = fixedTop ?? centredTop(blockHeightPt)
   let y = topPt
   const rows = wrapped.map((row) => {
     const placed = { ...row, topPt: y }
@@ -179,8 +182,25 @@ function attempt(lines: LyricLine[], scale: number, gap: number): SlideLayout {
   return { scale, zhPt, pyPt, rowHeightPt: rh, rowGapPt, rows, blockHeightPt, topPt }
 }
 
-export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
+/** Centred on the picture, but never above the content top or off the bottom. */
+function centredTop(blockHeightPt: number): number {
+  const top = MIDDLE_PT - blockHeightPt / 2
+  return Math.max(CONTENT_TOP_PT, Math.min(top, CONTENT_BOTTOM_PT - blockHeightPt))
+}
+
+/**
+ * With a fit (every slide built since per-song sizing) the size and first-row
+ * height are the song's, decided once in `songFit`. Without one the slide finds
+ * its own largest size, as decks saved before it did.
+ */
+export function layoutSlide(lines: LyricLine[], theme: Theme, fit?: SlideFit): SlideLayout {
+  if (fit) return attempt(lines, fit.scale, fit.rowGap, fit.topPt)
+  return freeLayout(lines, theme)
+}
+
+function freeLayout(lines: LyricLine[], theme: Theme): SlideLayout {
   const contentH = CONTENT_BOTTOM_PT - CONTENT_TOP_PT
+  const gap = theme.rowGap ?? DEFAULT_ROW_GAP
   // 大字 lifts both the ceiling and the comfortable floor, so a slide that
   // already fit at scale 1 comes back larger instead of unchanged.
   const t = theme.textScale ?? 1
@@ -188,7 +208,13 @@ export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
   const floor = t
   const maxRows = Math.min(theme.maxLinesPerSlide, lines.flatMap((line) => wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT))).length)
   for (let scale = ceil; scale >= floor - 1e-9; scale -= SCALE_STEP) {
-    const lay = attempt(lines, Math.max(floor, scale), 16)
+    const lay = attempt(lines, Math.max(floor, scale), gap)
+    if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
+  }
+  // At the floor, close the gap only as far as it takes: 宽松 on a full slide
+  // comes out as loose as the slide allows, not squeezed shut.
+  for (let g = gap - 1; g >= 0; g -= 1) {
+    const lay = attempt(lines, floor, g)
     if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
   }
   const tight = attempt(lines, floor, 0)
@@ -205,6 +231,79 @@ export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
   // iteration (steps >= 1) and returns there. Kept only to satisfy TS's
   // control-flow analysis of the for loop.
   return attempt(lines, MIN_SCALE, 0)
+}
+
+/**
+ * One size for the whole song: the largest every one of its slides can take,
+ * which is the fullest slide's. With `top`, the first row sits where it does on
+ * that fullest slide, centred on the picture, so turning the page never moves
+ * the text up or down.
+ */
+export function songFit(pages: LyricLine[][], theme: Theme, anchor: TextAnchor = 'top'): SlideFit | undefined {
+  const free = pages.map((lines) => freeLayout(lines, theme))
+  if (free.length === 0) return undefined
+  const scale = Math.min(...free.map((l) => l.scale))
+  const rowGap = Math.min(...free.map((l) => l.rowGapPt / l.scale))
+  if (anchor === 'center') return { scale, rowGap }
+  const tallest = Math.max(...pages.map((lines) => attempt(lines, scale, rowGap).blockHeightPt))
+  return { scale, rowGap, topPt: centredTop(tallest) }
+}
+
+/** The section badge: a small pill tucked into the top-left corner. */
+export const BADGE = { topPt: 18, leftPt: 24, heightPt: 19, padPt: 7, tracking: 0.2 } as const
+
+export function badgeWidthPt(label: string, sizePt: number): number {
+  return measureLatinPt(label, sizePt) + [...label].length * BADGE.tracking * sizePt + 2 * BADGE.padPt
+}
+
+/** Where the artist line starts on a title slide, and its line height. */
+export const META_TOP_PT = 300
+export const META_LINE = 1.35
+
+/** The stroke on one run of text, if the theme carries 字体描边. */
+export function outlinePt(theme: Theme, sizePt: number): { color: string; widthPt: number } | null {
+  return theme.outline ? { color: theme.outline.color, widthPt: Math.max(0.5, theme.outline.ratio * sizePt) } : null
+}
+
+export interface MetaLayout { pt: number; lines: string[] }
+
+const META_MIN_PT = 11
+
+/**
+ * The artist line under a title, upper-cased: at the theme's size when it fits
+ * on one line, otherwise shrunk and wrapped onto two, and cut with an ellipsis
+ * only when even the smallest size runs past two lines. `spacing` is the
+ * tracking the renderers add, as a fraction of the size.
+ */
+export function layoutMeta(text: string, theme: Theme, maxWidthPt = CONTENT_W_PT, spacing = 0.22): MetaLayout {
+  const upper = text.toUpperCase()
+  const width = (s: string, pt: number) => {
+    let w = 0
+    for (const ch of s) w += (isChinese(ch) || (PUNCT.has(ch) && ch.charCodeAt(0) > 0x2000) ? pt : measureLatinPt(ch, pt)) + spacing * pt
+    return w
+  }
+  const wrap = (pt: number): string[] => {
+    // break at spaces, or between any two characters of CJK
+    const tokens = upper.match(/[\u3000-\u9fff\uff00-\uffef]|[^\s\u3000-\u9fff\uff00-\uffef]+\s*|\s+/g) ?? []
+    const out: string[] = []
+    let cur = ''
+    for (const t of tokens) {
+      if (cur && width((cur + t).trimEnd(), pt) > maxWidthPt) { out.push(cur.trimEnd()); cur = t.trimStart() }
+      else cur += t
+    }
+    if (cur.trim()) out.push(cur.trimEnd())
+    return out
+  }
+  const full = theme.sizes.meta
+  if (width(upper, full) <= maxWidthPt) return { pt: full, lines: [upper] }
+  for (let pt = full; pt >= META_MIN_PT; pt -= 0.5) {
+    const lines = wrap(pt)
+    if (lines.length <= 2) return { pt, lines }
+  }
+  const [first = '', ...rest] = wrap(META_MIN_PT)
+  let second = rest.join(' ')
+  while (second && width(`${second}…`, META_MIN_PT) > maxWidthPt) second = [...second].slice(0, -1).join('').trimEnd()
+  return { pt: META_MIN_PT, lines: [first, `${second}…`] }
 }
 
 export interface TitleLayout { zhPt: number; pyPt: number; cells: Cell[]; widthPt: number }
