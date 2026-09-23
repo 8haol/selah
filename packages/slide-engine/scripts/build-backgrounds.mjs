@@ -169,20 +169,24 @@ const themes = [
   {
     id: 'rays',
     svg() {
+      const rayGrad = `<linearGradient id="rayGrad" gradientUnits="userSpaceOnUse" x1="560" y1="-160" x2="560" y2="1080"><stop offset="0" stop-color="#FFE9B0" stop-opacity="0.42"/><stop offset="0.85" stop-color="#FFE9B0" stop-opacity="0"/></linearGradient>`
+      const apexX = 560
+      const apexY = -160
+      const bottomXs = [300, 620, 940, 1260, 1580, 1900]
+      const widths = [110, 126, 142, 158, 174, 190]
       let rays = ''
-      const opacities = [0.14, 0.17, 0.155, 0.20, 0.17, 0.155, 0.14]
-      for (let i = 0; i < 7; i += 1) {
-        const centre = 620 + i * 205
-        const halfWidth = 45 + i * (35 / 6)
-        rays += `<polygon points="620,-200 ${centre - halfWidth},1080 ${centre + halfWidth},1080" fill="#FFE9B0" opacity="${opacities[i]}" filter="url(#blur-lg)"/>`
-      }
+      bottomXs.forEach((bx, i) => {
+        const halfWidth = widths[i] / 2
+        const opacity = i % 2 === 0 ? 0.8 : 0.6
+        rays += `<polygon points="${apexX},${apexY} ${bx - halfWidth},${H} ${bx + halfWidth},${H}" fill="url(#rayGrad)" opacity="${opacity}" filter="url(#blur-sm)"/>`
+      })
       return svg(
-        `<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0F1A26"/><stop offset="1" stop-color="#1C3040"/></linearGradient>`,
+        `<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E1A26"/><stop offset="1" stop-color="#16303F"/></linearGradient>${rayGrad}`,
         `<rect width="${W}" height="${H}" fill="url(#bg)"/>
-         ${bloom(620, -120, 380, '#FFD98A', 0.35)}
+         ${bloom(300, 900, 380, '#3E5566', 0.35)}
+         ${bloom(1500, 980, 420, '#3E5566', 0.35)}
+         ${bloom(560, -140, 360, '#FFD98A', 0.45)}
          ${rays}
-         ${bloom(300, 850, 380, '#5A6E80', 0.35)}
-         ${bloom(1500, 950, 460, '#5A6E80', 0.35)}
          ${scrim(false, 0.30)}${grain(0.06)}${vignette()}`,
       )
     },

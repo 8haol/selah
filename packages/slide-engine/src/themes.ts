@@ -59,7 +59,7 @@ export const BUILTIN_THEMES: Theme[] = [
   },
   {
     id: 'rays', name: '光束 · Rays', description: '云雾间落下柔和光束，沉静而有层次。',
-    background: { kind: 'image', src: '/themes/rays.jpg', approxColor: '#2a363f' },
+    background: { kind: 'image', src: '/themes/rays.jpg', approxColor: '#202f39' },
     colors: { zh: '#FFFFFF', pinyin: '#FFE9B0', title: '#FFFFFF', rule: '#E9C877', badge: '#FFF0C8', meta: '#C9C2A8' },
     shadow: dark('#000000', 0.6), ...base,
   },
