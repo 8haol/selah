@@ -1,18 +1,13 @@
 'use client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { FieldShell, FilledInput, Segmented } from '@/core/ui'
-
-const TABS = [
-  { value: 'public' as const, label: '公共歌库' },
-  { value: 'mine' as const, label: '我的歌' },
-]
+import { FieldShell, FilledInput } from '@/core/ui'
 
 /**
- * Tab and search live in the URL so the list itself stays a server render —
+ * Search lives in the URL so the list itself stays a server render —
  * the query hits the database's search key, not a client-side filter.
  */
-export function LibraryControls({ tab, query, basePath = '/worship/library' }: { tab: 'public' | 'mine'; query: string; basePath?: string }) {
+export function LibraryControls({ query, basePath = '/worship/library' }: { query: string; basePath?: string }) {
   const router = useRouter()
   const params = useSearchParams()
   const [q, setQ] = useState(query)
@@ -34,15 +29,8 @@ export function LibraryControls({ tab, query, basePath = '/worship/library' }: {
     return () => clearTimeout(t)
   }, [q, query, params, router, basePath])
 
-  const pickTab = (value: 'public' | 'mine') => {
-    const next = new URLSearchParams(params.toString())
-    next.set('tab', value)
-    router.replace(`${basePath}?${next}`, { scroll: false })
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Segmented ariaLabel="歌库范围" options={TABS} value={tab} onChange={pickTab} />
       <FieldShell className="h-[46px] min-w-[260px] flex-1">
         <label htmlFor="song-search" className="sr-only">
           搜索歌曲

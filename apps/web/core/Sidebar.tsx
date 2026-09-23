@@ -57,17 +57,9 @@ export function Sidebar({ service }: { service: SidebarService | null }) {
         </>
       )}
 
-      <div className="mt-auto flex flex-col gap-2.5 rounded-xl border border-line-2 bg-surface p-3.5">
-        <p className="text-[13px] leading-[1.6] text-ink-4">
-          歌库和歌单存在服务器上，整个敬拜队共用。登录后能看到每首歌是谁改的。
-        </p>
-        <span
-          title="登录还没上线"
-          className="self-start rounded-full bg-ink px-3.5 py-1.5 text-[13px] font-medium text-white"
-        >
-          登录
-        </span>
-      </div>
+      <p className="mt-auto rounded-xl border border-line-2 bg-surface p-3.5 text-[13px] leading-[1.6] text-ink-4">
+        歌库和歌单存在服务器上，整个敬拜队共用，打开就能用。
+      </p>
     </div>
   )
 }

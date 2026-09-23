@@ -19,8 +19,6 @@ const songInputSchema = z.object({
   defaultFlow: z.string().trim().default(''),
   pinyinOverrides: z.record(z.string(), z.string()).default({}),
   createdByName: z.string().trim().max(60, '昵称太长了').optional().or(z.literal('')),
-  /** 'public' puts the song in the shared 公共歌库 tab; 'org' is 我的歌. */
-  visibility: z.enum(['public', 'org']).default('org'),
 })
 export type SongInput = z.input<typeof songInputSchema>
 
@@ -62,15 +60,11 @@ function prepare(input: SongInput) {
     sections, pinyinOverrides: data.pinyinOverrides, defaultFlow: parseFlow(flowInput).join(' '),
     searchKey: buildSearchKey({ title: data.title, titleEn: data.titleEn, artist: data.artist }),
     createdByName: data.createdByName || null,
-    visibility: data.visibility,
   }
 }
 
-/**
- * `scope` is the 歌库 tab: 'public' is the curated library everyone starts
- * from, 'mine' is what this church imported itself.
- */
-export async function listSongs(query?: string, scope: 'public' | 'mine' | 'all' = 'all'): Promise<SongRow[]> {
+/** The whole team shares one 歌库, newest edits first. */
+export async function listSongs(query?: string): Promise<SongRow[]> {
   const { orgId } = await getCurrentContext()
   const db = await getDb()
   const q = query?.trim().toLowerCase().replace(/\s+/g, '')
@@ -78,7 +72,6 @@ export async function listSongs(query?: string, scope: 'public' | 'mine' | 'all'
     eq(wsSongs.orgId, orgId),
     isNull(wsSongs.deletedAt),
     q ? ilike(wsSongs.searchKey, `%${q}%`) : undefined,
-    scope === 'all' ? undefined : eq(wsSongs.visibility, scope === 'public' ? 'public' : 'org'),
   )
   return db.select().from(wsSongs).where(where).orderBy(desc(wsSongs.updatedAt)).limit(200)
 }

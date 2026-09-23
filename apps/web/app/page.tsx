@@ -12,10 +12,10 @@ const NAV = [
 ]
 
 /** Not built yet, so they stay plain text rather than links that 404. */
-const NAV_SOON = ['帮助', '登录']
+const NAV_SOON = ['帮助']
 
 const STEPS = [
-  { n: '01', title: '建好歌库', body: '从公共歌库挑歌，或粘贴、上传、拍照导入，自动分出主歌和副歌。' },
+  { n: '01', title: '建好歌库', body: '粘贴、上传或拍照导入歌词，自动分出主歌和副歌，全队共用一个歌库。' },
   { n: '02', title: '排本周歌单', body: '加入这周要唱的歌，每首排好顺序、选好主题。' },
   { n: '03', title: '一键导出', body: '整场合成一份 PPT，标题页和空白页自动加好。' },
 ]

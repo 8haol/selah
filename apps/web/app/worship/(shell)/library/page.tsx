@@ -14,11 +14,10 @@ export const metadata: Metadata = { title: '歌库' }
 
 const COLS = 'grid grid-cols-[minmax(0,1fr)_auto] gap-5 md:grid-cols-[minmax(0,2fr)_60px_minmax(0,1.4fr)_120px]'
 
-export default async function Library({ searchParams }: { searchParams: Promise<{ tab?: string; q?: string }> }) {
-  const { tab: rawTab, q } = await searchParams
-  const tab = rawTab === 'mine' ? 'mine' : 'public'
+export default async function Library({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams
   const query = q?.trim() ?? ''
-  const [songs, setlist] = await Promise.all([listSongs(query, tab), getCurrentSetlist()])
+  const [songs, setlist] = await Promise.all([listSongs(query), getCurrentSetlist()])
   const inSetlist = new Set(setlist?.songs.map((x) => x.song.id) ?? [])
 
   return (
@@ -34,7 +33,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       </header>
 
       <Suspense fallback={<div className="h-[46px]" />}>
-        <LibraryControls tab={tab} query={query} />
+        <LibraryControls query={query} />
       </Suspense>
 
       <div className="flex flex-col">
@@ -80,15 +79,13 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <p className="py-12 text-center text-[15px] text-ink-5">
             {query ? (
               '没有找到匹配的歌。换个关键字，或用拼音首字母再试一次。'
-            ) : tab === 'mine' ? (
+            ) : (
               <>
                 还没有导入过歌。
                 <Link href="/worship/import" className="text-accent hover:text-accent-link">
                   导入第一首
                 </Link>
               </>
-            ) : (
-              '公共歌库还是空的。'
             )}
           </p>
         )}

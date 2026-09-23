@@ -20,7 +20,7 @@ export default async function Import({ searchParams }: { searchParams: Promise<{
         </Link>
         <h1 className="text-[32px] font-bold tracking-[-0.02em] md:text-[40px]">导入新歌</h1>
         <p className="text-base text-ink-4">
-          {from === 'svc' ? '导入后会存进“我的歌”，并加到本周歌单。' : '导入后会存进“我的歌”，以后每周都能直接用。'}
+          {from === 'svc' ? '导入后会存进歌库，并加到本周歌单。' : '导入后会存进歌库，全队以后每周都能直接用。'}
         </p>
       </header>
       <ImportPanel from={from} setlistId={setlist?.id ?? null} />

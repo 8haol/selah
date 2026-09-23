@@ -111,7 +111,7 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
         router.push(`/worship/setlist/${setlistId}`)
         return
       }
-      router.push('/worship/library?tab=mine')
+      router.push('/worship/library')
     })
 
   const drop = tab === 'paste' ? null : DROP_COPY[tab]
@@ -241,7 +241,7 @@ export function ImportPanel({ from, setlistId }: { from: 'dash' | 'svc'; setlist
               ready && !pending ? 'cursor-pointer bg-ink hover:bg-ink-2' : 'cursor-not-allowed bg-ink-disabled',
             )}
           >
-            {pending ? '保存中…' : from === 'svc' ? '保存并加入歌单' : '保存到我的歌'}
+            {pending ? '保存中…' : from === 'svc' ? '保存并加入歌单' : '保存到歌库'}
           </button>
           {!name.trim() && tagged.length > 0 && <p className="text-center text-xs text-ink-5">还差一个歌名。</p>}
         </div>

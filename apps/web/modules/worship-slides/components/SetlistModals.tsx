@@ -9,11 +9,6 @@ import { typeName } from '../section-name'
 
 /* ------------------------------------------------------------ add songs */
 
-const TABS = [
-  { value: 'public' as const, label: '公共歌库' },
-  { value: 'mine' as const, label: '我的歌' },
-]
-
 export function AddSongModal({
   count, inSetlist, onAdd, onClose,
 }: {
@@ -22,7 +17,6 @@ export function AddSongModal({
   onAdd: (songId: string) => void
   onClose: () => void
 }) {
-  const [tab, setTab] = useState<'public' | 'mine'>('public')
   const [q, setQ] = useState('')
   const [rows, setRows] = useState<SongRow[] | null>(null)
   const [, start] = useTransition()
@@ -31,12 +25,12 @@ export function AddSongModal({
     let live = true
     const t = setTimeout(() => {
       start(async () => {
-        const r = await listSongs(q, tab)
+        const r = await listSongs(q)
         if (live) setRows(r)
       })
     }, q ? 250 : 0)
     return () => { live = false; clearTimeout(t) }
-  }, [q, tab])
+  }, [q])
 
   return (
     <Modal onClose={onClose} labelledBy="add-song-title" className="max-h-[84vh] max-w-[640px]">
@@ -46,9 +40,6 @@ export function AddSongModal({
           <span className="text-sm font-semibold text-accent">歌单 {count} 首</span>
         </div>
         <div className="flex items-center gap-2.5">
-          <div className="flex-none">
-            <Segmented ariaLabel="歌库范围" size="sm" options={TABS} value={tab} onChange={setTab} />
-          </div>
           <FieldShell className="h-10 flex-1">
             <FilledInput
               value={q}
@@ -66,7 +57,7 @@ export function AddSongModal({
           <p className="py-10 text-center text-[14.5px] text-ink-5">正在找…</p>
         ) : rows.length === 0 ? (
           <p className="py-10 text-center text-[14.5px] text-ink-5">
-            {q ? '没有找到匹配的歌' : tab === 'mine' ? '还没有导入过歌' : '公共歌库还是空的'}
+            {q ? '没有找到匹配的歌' : '还没有导入过歌'}
           </p>
         ) : (
           rows.map((s) => {

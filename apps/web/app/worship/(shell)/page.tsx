@@ -42,11 +42,11 @@ function serviceDateLabel(date: string | null): string | null {
 }
 
 export default async function Dashboard() {
-  const [setlist, defaultThemeId, decks, mine, upcoming] = await Promise.all([
+  const [setlist, defaultThemeId, decks, songs, upcoming] = await Promise.all([
     getCurrentSetlist(),
     getDefaultThemeId(),
     listRecentDecks(3),
-    listSongs(undefined, 'mine'),
+    listSongs(),
     nextServiceDate(),
   ])
 
@@ -114,12 +114,12 @@ export default async function Dashboard() {
 
       <section className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-bold">我的歌</h2>
-          <Link href="/worship/library?tab=mine" className="text-sm text-accent hover:text-accent-link">
-            全部 {mine.length} 首 ›
+          <h2 className="text-xl font-bold">歌库</h2>
+          <Link href="/worship/library" className="text-sm text-accent hover:text-accent-link">
+            全部 {songs.length} 首 ›
           </Link>
         </div>
-        {mine.length === 0 ? (
+        {songs.length === 0 ? (
           <p className="py-8 text-[15px] text-ink-5">
             还没有导入过歌。
             <Link href="/worship/import" className="text-accent hover:text-accent-link">
@@ -127,7 +127,7 @@ export default async function Dashboard() {
             </Link>
           </p>
         ) : (
-          mine.slice(0, 4).map((s) => (
+          songs.slice(0, 4).map((s) => (
             <div key={s.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-line py-3.5">
               <div className="min-w-0">
                 <Link href={`/worship/songs/${s.id}`} className="block truncate text-[15px] font-semibold hover:text-accent">
