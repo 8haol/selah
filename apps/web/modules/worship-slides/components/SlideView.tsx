@@ -40,7 +40,7 @@ export interface CharPick { line: number; at: number }
 
 /**
  * `static` keeps thumbnails on the poster — dozens of playing videos at once is not worth it.
- * `onPickChar` makes each character clickable, for correcting its pinyin; `picked` rings the one being edited.
+ * `onPickChar` makes each character clickable, for correcting it or its pinyin; `picked` rings the one being edited.
  */
 export function SlideView({ slide, theme, static: isStatic = false, frameClassName = 'rounded-lg', onPickChar, picked }: {
   slide: Slide; theme: Theme; static?: boolean; frameClassName?: string; onPickChar?: (pick: CharPick) => void; picked?: CharPick | null
@@ -61,7 +61,7 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
     if (!onPickChar || at === undefined || !/\p{Script=Han}/u.test(zh)) return {}
     const on = picked?.line === line && picked.at === at
     return {
-      role: 'button', tabIndex: 0, 'aria-label': `改“${zh}”的拼音`,
+      role: 'button', tabIndex: 0, 'aria-label': `改“${zh}”`,
       onClick: () => onPickChar({ line, at }),
       onKeyDown: (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPickChar({ line, at }) } },
       className: cx('cursor-pointer rounded-[12px] outline-offset-4 transition-colors hover:bg-white/15', on ? 'bg-white/20 outline-4 outline-white/80' : 'outline-transparent'),
