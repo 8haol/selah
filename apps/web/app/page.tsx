@@ -4,7 +4,7 @@ import { Music, Calendar, Ticket, BookOpen } from 'lucide-react'
 import { MODULES } from '@/core/registry'
 import { Badge, Card, buttonClass } from '@/modules/worship-slides/components/ui'
 
-export const metadata: Metadata = { title: { absolute: 'Selah · CCIL 国语堂工具' } }
+export const metadata: Metadata = { title: { absolute: 'Selah · 五饼二鱼敬拜队工具' } }
 
 const ICONS = { music: Music, calendar: Calendar, ticket: Ticket, book: BookOpen }
 

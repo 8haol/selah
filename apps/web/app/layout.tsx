@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="mx-auto w-full max-w-[1320px] flex-1 px-6 py-10">{children}</main>
         <footer className="mt-16 border-t border-line">
           <div className="mx-auto max-w-[1320px] px-6 py-8 text-xs text-ink-soft">
-            Selah · CCIL 国语堂敬拜队 · 2026
+            Selah · 五饼二鱼敬拜队 · 2026
           </div>
         </footer>
       </body>
