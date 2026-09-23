@@ -270,8 +270,8 @@ export function SettingsPanel({
     <>
       <p className="text-[13px] text-ink-5">以下设置对整场歌单生效</p>
       <div className="flex flex-col gap-2.5">
-        <span className="text-[13px] text-ink-4">每页行数</span>
-        <Segmented ariaLabel="每页行数" size="sm" grow options={LPP} value={settings.linesPerSlide} onChange={(v) => onChange({ linesPerSlide: v })} />
+        <span className="text-[13px] text-ink-4">每页最多行数</span>
+        <Segmented ariaLabel="每页最多行数" size="sm" grow options={LPP} value={settings.linesPerSlide} onChange={(v) => onChange({ linesPerSlide: v })} />
       </div>
       <div className="flex flex-col gap-2.5">
         <span className="text-[13px] text-ink-4">字号</span>
