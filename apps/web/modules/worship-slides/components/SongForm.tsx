@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { parseLyrics } from '@selah/slide-engine'
+import { annotateLine, getTheme, lineNeedsBreak, parseLyrics } from '@selah/slide-engine'
 import type { SongRow } from '@/db/schema'
 import { createSong, updateSong, deleteSong } from '../actions'
 import { Badge, Button, Card, Field, Input, Textarea, Toast } from './ui'
@@ -40,6 +40,20 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
   const [createdByName, setCreatedByName] = useState(song?.createdByName ?? '')
   const sections = useMemo(() => parseLyrics(lyricsText), [lyricsText])
 
+  // A line that alone wraps past the slide's row budget gets shrunk on the slide;
+  // breaking it by hand reads better, so flag it while the lyrics are being typed.
+  const longLines = useMemo(() => {
+    const theme = getTheme('night')
+    const out = new Map<string, string[]>()
+    for (const section of sections) {
+      const hits = section.lines
+        .filter((line) => lineNeedsBreak({ zh: line.zh, pinyin: annotateLine(line.zh, overrides) }, theme))
+        .map((line) => { const chars = [...line.zh]; return chars.slice(0, 12).join('') + (chars.length > 12 ? '…' : '') })
+      if (hits.length > 0) out.set(section.id, hits)
+    }
+    return out
+  }, [sections, overrides])
+
   const titleError = touched && !title.trim() ? '请填写歌名。' : null
   const lyricsError = touched && sections.length === 0 ? '请粘贴歌词，至少要有一个段落。' : null
   const invalid = !title.trim() || sections.length === 0
@@ -49,11 +63,11 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
     if (invalid) return
     setError(null)
     start(async () => {
-      try {
-        const input = { title, titleEn, artist, key, lyricsText, defaultFlow, pinyinOverrides: overrides, createdByName }
-        if (mode === 'create') { const { id } = await createSong(input); router.push(`/worship/songs/${id}`) }
-        else { await updateSong(song.id, input); router.refresh() }
-      } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+      const input = { title, titleEn, artist, key, lyricsText, defaultFlow, pinyinOverrides: overrides, createdByName }
+      const result = mode === 'create' ? await createSong(input) : await updateSong(song.id, input)
+      if (!result.ok) { setError(result.message); return }
+      if ('id' in result) router.push(`/worship/songs/${result.id}`)
+      else router.refresh()
     })
   }
 
@@ -98,7 +112,14 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
               <Button
                 variant="danger"
                 className="ml-auto"
-                onClick={() => { if (confirm('确定删除这首歌？30 天内可联系管理员恢复。')) start(async () => { await deleteSong(song.id); router.push('/worship') }) }}
+                onClick={() => {
+                  if (!confirm('确定删除这首歌？30 天内可联系管理员恢复。')) return
+                  start(async () => {
+                    const result = await deleteSong(song.id)
+                    if (!result.ok) { setError(result.message); return }
+                    router.push('/worship')
+                  })
+                }}
               >
                 删除
               </Button>
@@ -114,12 +135,25 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
             <p className="mt-2 text-xs leading-6 text-ink-soft">粘贴歌词后这里会显示段落。</p>
           ) : (
             <ul className="mt-3 space-y-1.5 text-sm">
-              {sections.map((s) => (
-                <li key={s.id} className="flex items-center gap-2">
-                  <Badge tone="accent" mono>{s.id}</Badge>
-                  <span className="ml-auto text-xs text-ink-soft"><span className="font-mono">{s.lines.length}</span> 行</span>
-                </li>
-              ))}
+              {sections.map((s) => {
+                const long = longLines.get(s.id)
+                return (
+                  <li key={s.id}>
+                    <div className="flex items-center gap-2">
+                      <Badge tone="accent" mono>{s.id}</Badge>
+                      <span className="ml-auto text-xs text-ink-soft"><span className="font-mono">{s.lines.length}</span> 行</span>
+                    </div>
+                    {long && (
+                      <p className="mt-1.5 rounded-sm border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-xs leading-5 text-amber-800">
+                        这行太长，建议手动断句
+                        {long.map((text, i) => (
+                          <span key={`${s.id}-${i}`} className="mt-0.5 block truncate font-mono text-[11px] text-amber-700">{text}</span>
+                        ))}
+                      </p>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Card>

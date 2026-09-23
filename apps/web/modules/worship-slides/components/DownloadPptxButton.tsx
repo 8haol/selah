@@ -4,9 +4,16 @@ import { getTheme, renderPptxBytes, deckFileName, type SlideDeck } from '@selah/
 import { Button, Toast } from './ui'
 
 async function fetchAsset(url: string): Promise<{ dataUrl: string; bytes: number }> {
-  const blob = await (await fetch(url)).blob()
-  const dataUrl = await new Promise<string>((res, rej) => {
-    const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(blob)
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`主题素材加载失败（${res.status}）`)
+  const blob = await res.blob()
+  // a rewritten 200 (an HTML error page, say) would otherwise be embedded as the background
+  if (!blob.type.startsWith('image/') && !blob.type.startsWith('video/')) throw new Error('主题素材类型不正确')
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
   })
   return { dataUrl, bytes: blob.size }
 }

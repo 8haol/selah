@@ -11,24 +11,50 @@ import { rowToSong } from './song-row'
 import { parseLyrics, parseFlow, expandFlow, buildDeck, FlowError, type Song } from '@selah/slide-engine'
 
 const songInputSchema = z.object({
-  title: z.string().trim().min(1, '请填写歌名').max(120),
-  titleEn: z.string().trim().max(120).optional().or(z.literal('')),
-  artist: z.string().trim().max(120).optional().or(z.literal('')),
-  key: z.string().trim().max(12).optional().or(z.literal('')),
-  lyricsText: z.string().min(1, '请粘贴歌词'),
+  title: z.string().trim().min(1, '请填写歌名').max(120, '歌名太长了'),
+  titleEn: z.string().trim().max(120, '英文名太长了').optional().or(z.literal('')),
+  artist: z.string().trim().max(120, '作者太长了').optional().or(z.literal('')),
+  key: z.string().trim().max(12, '调性太长了').optional().or(z.literal('')),
+  lyricsText: z.string().min(1, '请粘贴歌词').max(50_000, '歌词太长了，请分成多首歌'),
   defaultFlow: z.string().trim().default(''),
   pinyinOverrides: z.record(z.string(), z.string()).default({}),
-  createdByName: z.string().trim().max(60).optional().or(z.literal('')),
+  createdByName: z.string().trim().max(60, '昵称太长了').optional().or(z.literal('')),
 })
 export type SongInput = z.input<typeof songInputSchema>
+
+const deckInputSchema = z.object({
+  songIds: z.array(z.string().min(1)).min(1, '请至少选择一首歌').max(20, '一次最多 20 首歌'),
+  flows: z.record(z.string(), z.string().max(400, 'flow 太长了')),
+  themeId: z.string().min(1, '请选择一个主题').max(40, '主题不存在'),
+  title: z.string().trim().max(120, '标题太长了').optional(),
+  serviceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD').optional(),
+  generatedByName: z.string().trim().max(60, '昵称太长了').optional(),
+})
+export type DeckInput = z.input<typeof deckInputSchema>
+
+/**
+ * Server actions never throw at the caller: Next 16 replaces a thrown message
+ * with a generic one in production, so the UI would show nothing useful.
+ */
+export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; message: string }
+
+/** An error whose message was written for the user and is safe to show as-is. */
+class UserError extends Error {}
+
+function failure(e: unknown): { ok: false; message: string } {
+  if (e instanceof z.ZodError) return { ok: false, message: e.issues[0]?.message ?? '输入有误，请检查后再试' }
+  if (e instanceof FlowError || e instanceof UserError) return { ok: false, message: e.message }
+  console.error(e)
+  return { ok: false, message: '保存失败，请稍后再试' }
+}
 
 function prepare(input: SongInput) {
   const data = songInputSchema.parse(input)
   const sections = parseLyrics(data.lyricsText)
-  if (sections.length === 0) throw new Error('没有识别到任何歌词段落')
+  if (sections.length === 0) throw new UserError('没有识别到任何歌词段落')
   const song: Song = { id: 'tmp', title: data.title, sections, pinyinOverrides: data.pinyinOverrides, defaultFlow: '' }
   const flowInput = data.defaultFlow || sections.map((s) => s.id).join(' ')
-  try { expandFlow(song, flowInput) } catch (e) { if (e instanceof FlowError) throw new Error(e.message); throw e }
+  expandFlow(song, flowInput)
   return {
     title: data.title, titleEn: data.titleEn || null, artist: data.artist || null, key: data.key || null,
     sections, pinyinOverrides: data.pinyinOverrides, defaultFlow: parseFlow(flowInput).join(' '),
@@ -54,46 +80,56 @@ export async function getSong(id: string): Promise<SongRow | null> {
   return rows[0] ?? null
 }
 
-export async function createSong(input: SongInput): Promise<{ id: string }> {
-  const { orgId } = await getCurrentContext()
-  const db = await getDb()
-  const id = `song_${nanoid(10)}`
-  await db.insert(wsSongs).values({ id, orgId, ...prepare(input) })
-  return { id }
+export async function createSong(input: SongInput): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    const id = `song_${nanoid(10)}`
+    await db.insert(wsSongs).values({ id, orgId, ...prepare(input) })
+    return { ok: true, id }
+  } catch (e) { return failure(e) }
 }
 
-export async function updateSong(id: string, input: SongInput): Promise<void> {
-  const { orgId } = await getCurrentContext()
-  const db = await getDb()
-  await db.update(wsSongs).set({ ...prepare(input), updatedAt: new Date() }).where(and(eq(wsSongs.id, id), eq(wsSongs.orgId, orgId)))
+export async function updateSong(id: string, input: SongInput): Promise<ActionResult> {
+  try {
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    await db.update(wsSongs).set({ ...prepare(input), updatedAt: new Date() }).where(and(eq(wsSongs.id, id), eq(wsSongs.orgId, orgId)))
+    return { ok: true }
+  } catch (e) { return failure(e) }
 }
 
-export async function deleteSong(id: string): Promise<void> {
-  const { orgId } = await getCurrentContext()
-  const db = await getDb()
-  await db.update(wsSongs).set({ deletedAt: new Date() }).where(and(eq(wsSongs.id, id), eq(wsSongs.orgId, orgId)))
+export async function deleteSong(id: string): Promise<ActionResult> {
+  try {
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    await db.update(wsSongs).set({ deletedAt: new Date() }).where(and(eq(wsSongs.id, id), eq(wsSongs.orgId, orgId)))
+    return { ok: true }
+  } catch (e) { return failure(e) }
 }
 
-export async function saveDeck(input: { songIds: string[]; flows: Record<string, string>; themeId: string; title?: string; serviceDate?: string; generatedByName?: string }): Promise<{ deckId: string }> {
-  const { orgId } = await getCurrentContext()
-  const db = await getDb()
-  const rows = await db.select().from(wsSongs).where(and(eq(wsSongs.orgId, orgId), inArray(wsSongs.id, input.songIds)))
-  const byId = new Map(rows.map((r) => [r.id, r]))
-  const songs = input.songIds.map((id) => { const r = byId.get(id); if (!r) throw new Error(`歌曲不存在：${id}`); return rowToSong(r) })
-  let deck
-  try { deck = buildDeck({ songs, flows: input.flows, themeId: input.themeId }) } catch (e) { if (e instanceof FlowError) throw new Error(e.message); throw e }
-  const deckId = `deck_${nanoid(10)}`
-  let setlistId: string | null = null
-  if (songs.length > 1) {
-    setlistId = `set_${nanoid(10)}`
-    await db.insert(wsSetlists).values({ id: setlistId, orgId, title: input.title ?? `${input.serviceDate ?? deck.meta.generatedAt.slice(0, 10)} 敬拜`, serviceDate: input.serviceDate ?? null, createdByName: input.generatedByName ?? null })
-    await db.insert(wsSetlistItems).values(songs.map((s, i) => ({ id: `si_${nanoid(10)}`, setlistId: setlistId!, songId: s.id, position: i, flow: deck.meta.flows[s.id] ?? '' })))
-  }
-  await db.insert(wsDecks).values({
-    id: deckId, orgId, setlistId, songId: songs.length === 1 ? songs[0]!.id : null, themeId: input.themeId,
-    deck, flows: deck.meta.flows, titles: songs.map((s) => s.title), generatedByName: input.generatedByName ?? null,
-  })
-  return { deckId }
+export async function saveDeck(input: DeckInput): Promise<ActionResult<{ deckId: string }>> {
+  try {
+    const data = deckInputSchema.parse(input)
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    const rows = await db.select().from(wsSongs).where(and(eq(wsSongs.orgId, orgId), inArray(wsSongs.id, data.songIds)))
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    const songs = data.songIds.map((id) => { const r = byId.get(id); if (!r) throw new UserError(`歌曲不存在：${id}`); return rowToSong(r) })
+    const deck = buildDeck({ songs, flows: data.flows, themeId: data.themeId })
+    const deckId = `deck_${nanoid(10)}`
+    let setlistId: string | null = null
+    if (songs.length > 1) {
+      setlistId = `set_${nanoid(10)}`
+      await db.insert(wsSetlists).values({ id: setlistId, orgId, title: data.title ?? `${data.serviceDate ?? deck.meta.generatedAt.slice(0, 10)} 敬拜`, serviceDate: data.serviceDate ?? null, createdByName: data.generatedByName ?? null })
+      await db.insert(wsSetlistItems).values(songs.map((s, i) => ({ id: `si_${nanoid(10)}`, setlistId: setlistId!, songId: s.id, position: i, flow: deck.meta.flows[s.id] ?? '' })))
+    }
+    await db.insert(wsDecks).values({
+      id: deckId, orgId, setlistId, songId: songs.length === 1 ? songs[0]!.id : null, themeId: data.themeId,
+      deck, flows: deck.meta.flows, titles: songs.map((s) => s.title), generatedByName: data.generatedByName ?? null,
+    })
+    return { ok: true, deckId }
+  } catch (e) { return failure(e) }
 }
 
 export async function getDeck(id: string): Promise<DeckRow | null> {

@@ -57,11 +57,10 @@ export function GeneratePanel({ songs, initialSongIds }: { songs: SongRow[]; ini
     setSaveError(null)
     setSaved(false)
     start(async () => {
-      try {
-        const { deckId } = await saveDeck({ songIds: selected, flows: built.deck!.meta.flows, themeId, generatedByName: name || undefined })
-        setSaved(true)
-        router.push(`/worship/decks/${deckId}`)
-      } catch (e) { setSaveError(e instanceof Error ? e.message : String(e)) }
+      const result = await saveDeck({ songIds: selected, flows: built.deck!.meta.flows, themeId, generatedByName: name || undefined })
+      if (!result.ok) { setSaveError(result.message); return }
+      setSaved(true)
+      router.push(`/worship/decks/${result.deckId}`)
     })
   }
 
