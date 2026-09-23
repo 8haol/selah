@@ -107,6 +107,12 @@ export const BUILTIN_THEMES: Theme[] = [
     shadow: dark('#02040C', 0.65), ...base,
   },
   {
+    id: 'flow-dawn', name: '流光 · 晨曦', description: '奶白底色上，桃粉与淡紫的流光缓缓漂移，深色文字。适合灯光较亮的房间，循环播放。',
+    background: { kind: 'video', src: '/themes/video/flow-dawn.mp4', poster: '/themes/video/flow-dawn.jpg', approxColor: '#ede2e6', durationMs: 24_000 },
+    colors: { zh: '#1E1B3A', pinyin: '#1E1B3A', title: '#1E1B3A', rule: '#7A5FBF', badge: '#3C3468', meta: '#5B4A8A' },
+    shadow: { color: '#FFFFFF', opacity: 0.5 }, ...base,
+  },
+  {
     id: 'rays-motion', name: '光束 · 晨光', description: '暖金色光束自上方缓缓摇曳，循环播放。',
     background: { kind: 'video', src: '/themes/video/rays-motion.mp4', poster: '/themes/video/rays-motion.jpg', approxColor: '#2e3130', durationMs: 24_000 },
     colors: { zh: '#FFFFFF', pinyin: '#FFFFFF', title: '#FFFFFF', rule: '#E9C877', badge: '#FFF0C8', meta: '#C9C2A8' },

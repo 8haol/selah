@@ -6,14 +6,14 @@ import { assertThemeContrast, contrastRatio, type MeasuredBackground } from '../
 
 const IDS = [
   'night', 'sanctuary', 'deep', 'meadow', 'dawn', 'paper', 'cross-dawn', 'cross-glow', 'rays', 'stained-glass', 'dove', 'candle',
-  'flow-deep', 'flow-sanctuary', 'clouds', 'rays-motion', 'bokeh',
+  'flow-deep', 'flow-sanctuary', 'clouds', 'flow-dawn', 'rays-motion', 'bokeh',
 ]
 const manifestPath = path.resolve(__dirname, '../../../apps/web/public/themes/manifest.json')
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, Omit<MeasuredBackground, 'id'>>
 const publicFile = (src: string) => path.resolve(__dirname, '../../../apps/web/public', src.slice(1))
 
 describe('BUILTIN_THEMES', () => {
-  it('has the seventeen themes in order, static first then dynamic', () => {
+  it('has the eighteen themes in order, static first then dynamic', () => {
     expect(BUILTIN_THEMES.map((t) => t.id)).toEqual(IDS)
     expect(BUILTIN_THEMES.slice(0, 12).every((t) => t.background.kind === 'image')).toBe(true)
     expect(BUILTIN_THEMES.slice(12).every((t) => t.background.kind === 'video')).toBe(true)
@@ -53,7 +53,7 @@ describe('BUILTIN_THEMES', () => {
   })
   it('keeps every dynamic background under 2.5 MB and the set under 12 MB', () => {
     const videos = BUILTIN_THEMES.filter((t) => t.background.kind === 'video')
-    expect(videos.length).toBe(5)
+    expect(videos.length).toBe(6)
     let total = 0
     for (const t of videos) {
       const bytes = fs.statSync(publicFile(t.background.src)).size

@@ -119,7 +119,7 @@ const modes = {
         g = mean + ((g - mean) * (1 - w) + (other - mean) * w) / Math.hypot(1 - w, w)
       }
       const col = palette(g)
-      const vg = 1 - 0.35 * (Math.hypot(u - 0.5, v - 0.5) * 1.3) ** 2
+      const vg = 1 - (theme.vignette ?? 0.35) * (Math.hypot(u - 0.5, v - 0.5) * 1.3) ** 2
       return [col[0] * vg, col[1] * vg, col[2] * vg]
     }
   },
@@ -204,6 +204,9 @@ const themes = [
   { id: 'flow-deep', mode: 'glow', srgb: true, scrim: 1, crf: '27', offset: 228, palette: ['#04101F', '#0A2E4C', '#0E5F7A', '#22B3BF', '#B8F5F2'] },
   { id: 'flow-sanctuary', mode: 'glow', srgb: true, scrim: 1, crf: '27', offset: 780, palette: ['#150818', '#3A1638', '#7A2E5A', '#D98A4F', '#FFE3A8'] },
   { id: 'clouds', mode: 'glow', srgb: true, scrim: 1, crf: '27', offset: 256, palette: ['#04060E', '#0A1030', '#22307A', '#7E6BE0', '#D7CCFF'] },
+  // the light one: pale pastel mist for bright rooms, dark lyrics on top. Here
+  // a high glow value is the *deeper* tint, so the ramp runs light → lavender.
+  { id: 'flow-dawn', mode: 'glow', srgb: true, scrim: 1, crf: '27', offset: 536, vignette: 0.08, palette: ['#FCF9F5', '#F6E8E3', '#E6DDF1', '#C8CFF0', '#A3B0E6'] },
   { id: 'rays-motion', mode: 'rays', seed: 9, speed: 0.06, palette: ['#0E1720', '#1A2A36', '#5A4D34', '#E9C877', '#FFF3D0'] },
   { id: 'bokeh', mode: 'bokeh', seed: 11, speed: 0, palette: ['#080C1A', '#10152B', '#1A1F42', '#FFD27A', '#FFF3D0'] },
 ]
