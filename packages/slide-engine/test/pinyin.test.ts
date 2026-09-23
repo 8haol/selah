@@ -18,6 +18,23 @@ describe('annotateLine', () => {
     expect(annotateLine('快乐')[1]).toBe('lè')
     expect(annotateLine('行在光中')[0]).toBe('xíng')
   })
+  it('reads 祢 and its variants as nǐ, not the dictionary default mí', () => {
+    // 祢/袮/禰 are the reverent second-person pronoun in Chinese Christian texts.
+    // pinyin-pro only knows the ancestral-shrine reading mí.
+    expect(annotateLine('祢')).toEqual(['nǐ'])
+    expect(annotateLine('袮')).toEqual(['nǐ'])
+    expect(annotateLine('禰')).toEqual(['nǐ'])
+    expect(annotateLine('主啊 我渴慕尋求祢').at(-1)).toBe('nǐ')
+    expect(joinPinyin(annotateLine('我要愛慕祢'))).toBe('wǒ yào ài mù nǐ')
+  })
+  it('fixes hymn words the dictionary mis-reads', () => {
+    expect(annotateLine('数算主恩').slice(0, 2)).toEqual(['shǔ', 'suàn'])
+    expect(annotateLine('數算主恩').slice(0, 2)).toEqual(['shǔ', 'suàn'])
+    expect(annotateLine('應許').slice(0, 2)).toEqual(['yīng', 'xǔ'])
+  })
+  it('lets a song override beat the church reading', () => {
+    expect(annotateLine('祢', { 祢: 'mí' })).toEqual(['mí'])
+  })
   it('applies overrides per character', () => {
     expect(annotateLine('长阔高深', { 长: 'zhǎng' })[0]).toBe('zhǎng')
     expect(annotateLine('长长', { 长: 'zhǎng' })).toEqual(['zhǎng', 'zhǎng'])
@@ -42,6 +59,9 @@ describe('polyphonicChoices', () => {
     const c = polyphonicChoices('长')
     expect(c).toContain('cháng')
     expect(c).toContain('zhǎng')
+  })
+  it('offers the church reading for 祢 so the editor can pick it', () => {
+    expect(polyphonicChoices('祢')).toContain('nǐ')
   })
   it('returns [] for non-Chinese', () => {
     expect(polyphonicChoices('A')).toEqual([])
