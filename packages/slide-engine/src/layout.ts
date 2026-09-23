@@ -116,18 +116,23 @@ function attempt(lines: LyricLine[], scale: number, gap: number): SlideLayout {
 
 export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
   const contentH = CONTENT_BOTTOM_PT - CONTENT_TOP_PT
+  // 大字 lifts both the ceiling and the comfortable floor, so a slide that
+  // already fit at scale 1 comes back larger instead of unchanged.
+  const t = theme.textScale ?? 1
+  const ceil = MAX_SCALE * t
+  const floor = t
   const maxRows = Math.min(theme.maxLinesPerSlide, lines.flatMap((line) => wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT))).length)
-  for (let scale = MAX_SCALE; scale >= 1 - 1e-9; scale -= SCALE_STEP) {
-    const lay = attempt(lines, Math.max(1, scale), 6)
+  for (let scale = ceil; scale >= floor - 1e-9; scale -= SCALE_STEP) {
+    const lay = attempt(lines, Math.max(floor, scale), 6)
     if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
   }
-  const tight = attempt(lines, 1, 0)
+  const tight = attempt(lines, floor, 0)
   if (tight.blockHeightPt <= contentH) return tight
   // A single line wrapping to more rows than the slide allows: shrink past the
   // 45pt floor rather than let the block run off the bottom of the slide.
-  const steps = Math.round((1 - MIN_SCALE) / SCALE_STEP)
+  const steps = Math.round((floor - MIN_SCALE) / SCALE_STEP)
   for (let i = 1; i <= steps; i += 1) {
-    const scale = Math.max(MIN_SCALE, Number((1 - i * SCALE_STEP).toFixed(4)))
+    const scale = Math.max(MIN_SCALE, Number((floor - i * SCALE_STEP).toFixed(4)))
     const lay = attempt(lines, scale, 0)
     if (lay.blockHeightPt <= contentH || scale === MIN_SCALE) return lay
   }

@@ -1,68 +1,105 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Music, Calendar, Ticket, BookOpen } from 'lucide-react'
-import { MODULES } from '@/core/registry'
-import { Badge, Card, buttonClass } from '@/modules/worship-slides/components/ui'
+import { annotateLine, getTheme, type Slide } from '@selah/slide-engine'
+import { SlideView } from '@/modules/worship-slides/components/SlideView'
+import { pillClass } from '@/core/ui'
 
-export const metadata: Metadata = { title: { absolute: 'Selah · 五饼二鱼敬拜队工具' } }
+export const metadata: Metadata = { title: { absolute: 'Selah · 敬拜投影片，一分钟做好' } }
 
-const ICONS = { music: Music, calendar: Calendar, ticket: Ticket, book: BookOpen }
+const NAV = [
+  { label: '主题', href: '/worship/themes' },
+  { label: '歌库', href: '/worship/library' },
+]
 
-const STEPS = ['贴歌词', '排 flow', '选主题', '下载 PPT']
+/** Not built yet, so they stay plain text rather than links that 404. */
+const NAV_SOON = ['帮助', '登录']
+
+const STEPS = [
+  { n: '01', title: '建好歌库', body: '从公共歌库挑歌，或粘贴、上传、拍照导入，自动分出主歌和副歌。' },
+  { n: '02', title: '排本周歌单', body: '加入这周要唱的歌，每首排好顺序、选好主题。' },
+  { n: '03', title: '一键导出', body: '整场合成一份 PPT，标题页和空白页自动加好。' },
+]
+
+/** The product shot: two real lyric lines, laid out by the real slide engine. */
+const HERO_LINES = ['我心满溢　我心满溢', '对祢的爱和思念无止尽']
 
 export default function Home() {
+  const heroTheme = getTheme('night')
+  const heroSlide: Slide = { kind: 'lyrics', lines: HERO_LINES.map((zh) => ({ zh, pinyin: annotateLine(zh, {}) })) }
+
   return (
-    <div className="space-y-16">
-      <section className="max-w-2xl pt-4">
-        <h1 className="font-serif text-[28px] font-medium leading-[1.35] tracking-tight text-ink sm:text-4xl">
-          敬拜投影，一分钟做好。
-        </h1>
-        <p className="mt-4 text-[15px] leading-7 text-ink-soft">
-          把歌词贴进来，排好 flow，选一套主题，就能下载带拼音的 PPT。歌进了库，下周直接复用。
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/worship" className={buttonClass({ size: 'lg' })}>进入歌库</Link>
-          <Link href="/worship/generate" className={buttonClass({ size: 'lg', variant: 'ghost' })}>生成 PPT</Link>
-        </div>
-        <ol className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-ink-soft">
-          {STEPS.map((s, i) => (
-            <li key={s} className="flex items-center gap-3">
-              {i > 0 && <span aria-hidden="true" className="text-line">—</span>}
-              <span className="flex items-center gap-2">
-                <span className="font-mono text-[11px] text-accent">{i + 1}</span>
-                {s}
-              </span>
-            </li>
+    <div className="flex min-h-screen flex-col items-center">
+      <header className="sticky top-0 z-10 flex h-16 w-full items-center gap-6 border-b border-line bg-[rgba(255,255,255,.88)] px-6 text-sm backdrop-blur-[14px] md:gap-[30px] md:px-12">
+        <Link href="/" className="font-display text-xl font-bold tracking-[-0.01em]">
+          Selah
+        </Link>
+        <nav className="ml-auto hidden items-center gap-[30px] text-ink-3 sm:flex">
+          {NAV.map((n) => (
+            <Link key={n.label} href={n.href} className="transition-colors hover:text-ink">
+              {n.label}
+            </Link>
           ))}
-        </ol>
+          {NAV_SOON.map((label) => (
+            <span key={label} title="还没上线">
+              {label}
+            </span>
+          ))}
+        </nav>
+        <Link href="/worship" className={pillClass({ className: 'ml-auto sm:ml-0' })}>
+          开始使用
+        </Link>
+      </header>
+
+      <section className="flex flex-col items-center px-6 pt-16 text-center md:pt-[104px]">
+        <h1 className="text-[44px] font-bold leading-[1.1] tracking-[-0.03em] sm:text-[60px] md:text-[76px]">
+          敬拜投影片
+          <br />
+          <span className="text-accent">一分钟做好</span>
+        </h1>
+        <p className="mt-7 text-pretty text-lg leading-[1.6] text-ink-4 md:text-xl">
+          粘贴歌词或上传文件，自动分段、加拼音、排好版式。
+        </p>
+        <div className="mt-9 flex flex-wrap justify-center gap-3">
+          <Link href="/worship" className={pillClass({ size: 'lg' })}>
+            开始使用
+          </Link>
+          <Link href="/worship/themes" className={pillClass({ tone: 'soft', size: 'lg', className: 'px-[26px]' })}>
+            浏览主题
+          </Link>
+        </div>
+        <p className="mt-5 text-[13.5px] text-ink-5">免费使用，不用注册</p>
       </section>
 
-      <section>
-        <h2 className="font-serif text-lg font-medium text-ink">工具</h2>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {MODULES.map((m) => {
-            const Icon = ICONS[m.icon]
-            const ready = m.status === 'ready'
-            const card = (
-              <Card className={`h-full p-5 transition ${ready ? 'hover:-translate-y-0.5 hover:border-ink-soft/40 hover:shadow-[0_6px_20px_rgba(30,27,24,0.07)]' : 'border-dashed bg-transparent'}`}>
-                <div className="flex items-center gap-3">
-                  <span className={`grid size-10 shrink-0 place-items-center rounded-md ${ready ? 'bg-accent-soft text-accent' : 'bg-paper text-ink-soft'}`}>
-                    <Icon size={19} aria-hidden="true" />
-                  </span>
-                  <h3 className={`font-serif text-base font-medium ${ready ? 'text-ink' : 'text-ink-soft'}`}>{m.name}</h3>
-                  {!ready && <Badge className="ml-auto">即将推出</Badge>}
-                </div>
-                <p className="mt-3 text-sm leading-6 text-ink-soft">{m.description}</p>
-              </Card>
-            )
-            return ready ? (
-              <Link key={m.id} href={m.href} className="rounded-lg">{card}</Link>
-            ) : (
-              <div key={m.id}>{card}</div>
-            )
-          })}
-        </div>
+      <div className="mt-14 w-[calc(100%-48px)] max-w-[1040px] overflow-hidden rounded-[22px] shadow-[0_40px_90px_rgba(0,0,0,.2)] md:mt-20 md:w-[calc(100%-96px)]">
+        <SlideView slide={heroSlide} theme={heroTheme} static frameClassName="" />
+      </div>
+
+      <section className="mt-24 grid w-[calc(100%-48px)] max-w-[1040px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-12 md:mt-[140px] md:w-[calc(100%-96px)]">
+        {STEPS.map((s) => (
+          <div key={s.n} className="flex flex-col gap-3">
+            <span className="font-mono text-[13px] font-medium text-accent">{s.n}</span>
+            <h2 className="text-[22px] font-semibold">{s.title}</h2>
+            <p className="text-[15.5px] leading-[1.7] text-ink-4">{s.body}</p>
+          </div>
+        ))}
       </section>
+
+      <section className="mt-24 flex flex-col items-center gap-6 px-6 text-center md:mt-[140px]">
+        <h2 className="text-[32px] font-bold leading-[1.2] tracking-[-0.02em] md:text-[44px]">这个主日，试试看</h2>
+        <Link href="/worship" className={pillClass({ size: 'lg' })}>
+          开始使用
+        </Link>
+      </section>
+
+      <footer className="mt-20 flex w-full flex-wrap items-center gap-6 border-t border-line px-6 py-7 text-[13px] text-ink-5 md:mt-[120px] md:px-12">
+        <span className="font-display text-base font-bold text-ink">Selah</span>
+        <span>© 2026</span>
+        <div className="ml-auto flex gap-6">
+          <span>隐私</span>
+          <span>条款</span>
+          <span>联系我们</span>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -19,6 +19,8 @@ const songInputSchema = z.object({
   defaultFlow: z.string().trim().default(''),
   pinyinOverrides: z.record(z.string(), z.string()).default({}),
   createdByName: z.string().trim().max(60, '昵称太长了').optional().or(z.literal('')),
+  /** 'public' puts the song in the shared 公共歌库 tab; 'org' is 我的歌. */
+  visibility: z.enum(['public', 'org']).default('org'),
 })
 export type SongInput = z.input<typeof songInputSchema>
 
@@ -60,16 +62,24 @@ function prepare(input: SongInput) {
     sections, pinyinOverrides: data.pinyinOverrides, defaultFlow: parseFlow(flowInput).join(' '),
     searchKey: buildSearchKey({ title: data.title, titleEn: data.titleEn, artist: data.artist }),
     createdByName: data.createdByName || null,
+    visibility: data.visibility,
   }
 }
 
-export async function listSongs(query?: string): Promise<SongRow[]> {
+/**
+ * `scope` is the 歌库 tab: 'public' is the curated library everyone starts
+ * from, 'mine' is what this church imported itself.
+ */
+export async function listSongs(query?: string, scope: 'public' | 'mine' | 'all' = 'all'): Promise<SongRow[]> {
   const { orgId } = await getCurrentContext()
   const db = await getDb()
   const q = query?.trim().toLowerCase().replace(/\s+/g, '')
-  const where = q
-    ? and(eq(wsSongs.orgId, orgId), isNull(wsSongs.deletedAt), ilike(wsSongs.searchKey, `%${q}%`))
-    : and(eq(wsSongs.orgId, orgId), isNull(wsSongs.deletedAt))
+  const where = and(
+    eq(wsSongs.orgId, orgId),
+    isNull(wsSongs.deletedAt),
+    q ? ilike(wsSongs.searchKey, `%${q}%`) : undefined,
+    scope === 'all' ? undefined : eq(wsSongs.visibility, scope === 'public' ? 'public' : 'org'),
+  )
   return db.select().from(wsSongs).where(where).orderBy(desc(wsSongs.updatedAt)).limit(200)
 }
 
@@ -104,6 +114,57 @@ export async function deleteSong(id: string): Promise<ActionResult> {
     const { orgId } = await getCurrentContext()
     const db = await getDb()
     await db.update(wsSongs).set({ deletedAt: new Date() }).where(and(eq(wsSongs.id, id), eq(wsSongs.orgId, orgId)))
+    return { ok: true }
+  } catch (e) { return failure(e) }
+}
+
+const sectionsSchema = z.array(z.object({
+  id: z.string().trim().min(1).max(8),
+  lines: z.array(z.string().max(400, '有一行太长了')).max(60, '一段最多 60 行'),
+})).min(1, '至少要留一段歌词').max(40, '段落太多了')
+
+/**
+ * Replace a song's lyrics from the setlist editor, where a section is just
+ * text. Rebuilding the header form and re-running the parser keeps section
+ * ids normalised exactly as the import path produces them.
+ */
+export async function updateSongSections(songId: string, input: z.input<typeof sectionsSchema>): Promise<ActionResult> {
+  try {
+    const data = sectionsSchema.parse(input)
+    const text = data
+      .map((s) => `[${s.id}]\n${s.lines.map((l) => l.trim()).filter(Boolean).join('\n')}`)
+      .filter((block) => block.split('\n').length > 1)
+      .join('\n\n')
+    const sections = parseLyrics(text)
+    if (sections.length === 0) throw new UserError('没有识别到任何歌词段落')
+
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    const rows = await db.select().from(wsSongs).where(and(eq(wsSongs.id, songId), eq(wsSongs.orgId, orgId), isNull(wsSongs.deletedAt))).limit(1)
+    const row = rows[0]
+    if (!row) throw new UserError('歌曲不存在')
+
+    // a flow token whose section just disappeared would break every later build
+    const ids = new Set(sections.map((s) => s.id))
+    const defaultFlow = parseFlow(row.defaultFlow || '').filter((t) => ids.has(t)).join(' ')
+
+    await db.update(wsSongs)
+      .set({ sections, defaultFlow: defaultFlow || sections.map((s) => s.id).join(' '), updatedAt: new Date() })
+      .where(and(eq(wsSongs.id, songId), eq(wsSongs.orgId, orgId)))
+    return { ok: true }
+  } catch (e) { return failure(e) }
+}
+
+const overridesSchema = z.record(z.string().length(1), z.string().trim().max(12))
+
+/** Pin how one character is read in this song — the polyphonic picker. */
+export async function updateSongPinyin(songId: string, overrides: z.input<typeof overridesSchema>): Promise<ActionResult> {
+  try {
+    const pinyinOverrides = overridesSchema.parse(overrides)
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    await db.update(wsSongs).set({ pinyinOverrides, updatedAt: new Date() })
+      .where(and(eq(wsSongs.id, songId), eq(wsSongs.orgId, orgId), isNull(wsSongs.deletedAt)))
     return { ok: true }
   } catch (e) { return failure(e) }
 }

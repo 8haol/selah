@@ -1,4 +1,4 @@
-import type { Theme } from './types'
+import type { Slide, SlideDeck, Theme } from './types'
 
 const base = {
   fonts: { zh: 'SimHei', pinyin: 'Arial', title: 'KaiTi' },
@@ -124,4 +124,30 @@ export function getTheme(id: string): Theme {
   const t = BUILTIN_THEMES.find((x) => x.id === id)
   if (!t) throw new Error(`未知主题：${id}`)
   return t
+}
+
+/**
+ * The theme a setlist actually projects with: its own look, plus the
+ * per-service display settings (每页行数 / 字号). Returns `base` untouched when
+ * nothing differs, so single-theme decks keep object identity.
+ */
+export function tunedTheme(base: Theme, opts: { linesPerSlide?: number; bigText?: boolean } = {}): Theme {
+  const maxLinesPerSlide = opts.linesPerSlide ?? base.maxLinesPerSlide
+  const textScale = opts.bigText ? 1.15 : 1
+  if (maxLinesPerSlide === base.maxLinesPerSlide && textScale === (base.textScale ?? 1)) return base
+  return { ...base, maxLinesPerSlide, textScale }
+}
+
+/** How the 主题 gallery groups a theme. Video themes loop; the rest are stills. */
+export function themeCategory(theme: Theme): '照片' | '动态' {
+  return theme.background.kind === 'video' ? '动态' : '照片'
+}
+
+/**
+ * The theme one slide of a deck projects with — its song's theme when the deck
+ * mixes themes, otherwise the deck's, with the setlist's display settings
+ * applied. Preview and export both go through here so they cannot drift.
+ */
+export function slideTheme(deck: SlideDeck, slide: Slide): Theme {
+  return tunedTheme(getTheme(slide.themeId ?? deck.themeId), deck.meta.display ?? {})
 }

@@ -1,6 +1,13 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react'
+import { cx } from '@/core/ui'
 
-const cx = (...c: Array<string | false | undefined | null>) => c.filter(Boolean).join(' ')
+export { cx }
+
+/**
+ * Form-shaped primitives for the song editor. The rest of the product speaks
+ * in pills and segmented controls — see `core/ui` — but a long edit form still
+ * wants labelled fields and a rectangular button.
+ */
 
 const BUTTON_SIZES = {
   sm: 'h-9 min-h-9 px-3 text-xs gap-1.5',
@@ -9,9 +16,10 @@ const BUTTON_SIZES = {
 } as const
 
 const BUTTON_VARIANTS = {
-  primary: 'bg-accent text-white hover:bg-[#3E3995] shadow-[0_1px_2px_rgba(30,27,24,0.14)]',
-  ghost: 'border border-line bg-card text-ink hover:border-ink-soft hover:bg-paper',
-  danger: 'border border-danger/35 bg-card text-danger hover:bg-danger-soft',
+  primary: 'bg-ink text-white hover:bg-ink-2',
+  accent: 'bg-accent text-white hover:bg-accent-strong',
+  ghost: 'border border-line-3 bg-surface text-ink hover:border-line-strong hover:bg-surface-3',
+  danger: 'border border-accent/35 bg-surface text-accent hover:bg-accent-soft',
 } as const
 
 export type ButtonVariant = keyof typeof BUTTON_VARIANTS
@@ -67,7 +75,7 @@ export function Input({ className, ...p }: InputHTMLAttributes<HTMLInputElement>
     <input
       {...p}
       className={cx(
-        'h-11 w-full rounded-md border border-line bg-card px-3 text-sm text-ink transition-colors placeholder:text-ink-soft hover:border-ink-soft/50 focus:border-accent',
+        'h-11 w-full rounded-md border border-line-3 bg-surface px-3 text-sm text-ink transition-colors hover:border-line-strong focus:border-accent',
         className,
       )}
     />
@@ -79,7 +87,7 @@ export function Textarea({ className, ...p }: TextareaHTMLAttributes<HTMLTextAre
     <textarea
       {...p}
       className={cx(
-        'w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm leading-7 text-ink transition-colors placeholder:text-ink-soft hover:border-ink-soft/50 focus:border-accent',
+        'w-full rounded-md border border-line-3 bg-surface px-3 py-2.5 text-sm leading-7 text-ink transition-colors hover:border-line-strong focus:border-accent',
         className,
       )}
     />
@@ -92,19 +100,19 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
       <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
       {children}
       {error ? (
-        <span className="mt-1.5 block text-xs text-danger">{error}</span>
+        <span className="mt-1.5 block text-xs text-accent-deep">{error}</span>
       ) : (
-        hint && <span className="mt-1.5 block text-xs text-ink-soft">{hint}</span>
+        hint && <span className="mt-1.5 block text-xs text-ink-5">{hint}</span>
       )}
     </label>
   )
 }
 
 const BADGE_TONES = {
-  neutral: 'border-line bg-paper text-ink-soft',
-  accent: 'border-transparent bg-accent-soft text-accent',
-  success: 'border-transparent bg-success-soft text-success',
-  danger: 'border-transparent bg-danger-soft text-danger',
+  neutral: 'border-line-3 bg-surface-3 text-ink-4',
+  accent: 'border-transparent bg-accent-soft text-accent-deep',
+  success: 'border-transparent bg-ok/10 text-ok',
+  danger: 'border-transparent bg-accent-soft text-accent-deep',
 } as const
 
 export function Badge({ tone = 'neutral', mono = false, className, children }: { tone?: keyof typeof BADGE_TONES; mono?: boolean; className?: string; children: ReactNode }) {
@@ -123,7 +131,7 @@ export function Badge({ tone = 'neutral', mono = false, className, children }: {
 }
 
 export function Card({ as: As = 'div', className, children }: { as?: 'div' | 'section' | 'li' | 'article'; className?: string; children: ReactNode }) {
-  return <As className={cx('rounded-lg border border-line bg-card', className)}>{children}</As>
+  return <As className={cx('rounded-xl border border-line-2 bg-surface', className)}>{children}</As>
 }
 
 /** Music note inside a circle — the one illustration the product owns. */
@@ -140,18 +148,18 @@ export function NoteMark({ className }: { className?: string }) {
 
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center rounded-lg border border-dashed border-line bg-card/60 px-6 py-14 text-center">
+    <div className="flex flex-col items-center rounded-xl border border-dashed border-line-strong px-6 py-14 text-center">
       <NoteMark className="size-14 text-accent" />
-      <p className="mt-5 font-serif text-lg font-medium text-ink">{title}</p>
-      {description && <p className="mt-2 max-w-sm text-sm leading-6 text-ink-soft">{description}</p>}
+      <p className="mt-5 text-lg font-semibold text-ink">{title}</p>
+      {description && <p className="mt-2 max-w-sm text-sm leading-6 text-ink-4">{description}</p>}
       {action && <div className="mt-6">{action}</div>}
     </div>
   )
 }
 
 const TOAST_TONES = {
-  success: { wrap: 'border-success/30 bg-success-soft text-success', icon: 'M4.5 10.5l3.6 3.6 7.4-8.2' },
-  danger: { wrap: 'border-danger/30 bg-danger-soft text-danger', icon: 'M10 5.5v5.4M10 14.2v.3' },
+  success: { wrap: 'border-ok/30 bg-ok/10 text-ok', icon: 'M4.5 10.5l3.6 3.6 7.4-8.2' },
+  danger: { wrap: 'border-accent/30 bg-accent-soft text-accent-deep', icon: 'M10 5.5v5.4M10 14.2v.3' },
 } as const
 
 /** Inline banner, not a floating popover — it sits where the action happened. */

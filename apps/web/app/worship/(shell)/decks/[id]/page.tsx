@@ -21,11 +21,11 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
   if (!row) notFound()
   const theme = getTheme(row.themeId)
   return (
-    <div className="space-y-10">
+    <div className="mx-auto max-w-[1080px] space-y-10 px-6 pb-20 pt-10 md:px-12 md:pt-12">
       <header className="flex flex-wrap items-end gap-x-6 gap-y-4">
         <div className="min-w-0">
-          <Link href="/worship" className="inline-flex rounded-sm text-xs text-ink-soft transition-colors hover:text-ink">← 返回歌库</Link>
-          <h1 className="mt-2 font-serif text-[28px] font-medium leading-tight text-ink">{row.titles.join(' · ')}</h1>
+          <Link href="/worship/library" className="inline-flex rounded-sm text-sm text-ink-5 transition-colors hover:text-ink">‹ 歌库</Link>
+          <h1 className="mt-2 text-[32px] font-bold tracking-[-0.02em] text-ink md:text-[40px]">{row.titles.join(' · ')}</h1>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Badge>{theme.name}</Badge>
             <Badge mono>{row.deck.slides.length} 页</Badge>
@@ -34,9 +34,11 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-start gap-3">
-          <Link href={`/worship/generate?songs=${row.deck.meta.songIds.join(',')}`} className={buttonClass({ variant: 'ghost' })}>
-            重新生成
-          </Link>
+          {row.setlistId && (
+            <Link href={`/worship/setlist/${row.setlistId}`} className={buttonClass({ variant: 'ghost' })}>
+              回到这份歌单
+            </Link>
+          )}
           <DownloadPptxButton deck={row.deck} titles={row.titles} />
         </div>
       </header>
@@ -44,7 +46,7 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-12">
         <DeckPreview deck={row.deck} />
         <Card as="section" className="p-4">
-          <h2 className="font-serif text-sm font-medium text-ink">每首歌的 flow</h2>
+          <h2 className="text-sm font-semibold text-ink">每首歌的 flow</h2>
           <ul className="mt-3 space-y-3 text-sm">
             {row.deck.meta.songIds.map((sid, i) => (
               <li key={sid}>

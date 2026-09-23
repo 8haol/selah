@@ -1,15 +1,31 @@
 import PptxGenJS from 'pptxgenjs'
 import JSZip from 'jszip'
 import type { SlideDeck, Theme } from './types'
-import { getTheme } from './themes'
+import { getTheme, slideTheme } from './themes'
 import { layoutSlide, CONTENT_X_PT, CONTENT_W_PT } from './layout'
 import { dedupeMedia, injectVideoTiming } from './pptx-post'
 
-export interface RenderAssets {
+export interface ThemeAssets {
   /** JPEG data URL: the image theme's background, or the video theme's poster. */
   backgroundDataUrl: string
   /** MP4 data URL. Required for video themes, ignored for image themes. */
   videoDataUrl?: string
+}
+
+export interface RenderAssets extends ThemeAssets {
+  /**
+   * themeId → that theme's assets, for a deck whose songs use different
+   * themes. The top-level pair stays the deck theme's, so a single-theme
+   * render passes exactly what it always did.
+   */
+  byTheme?: Record<string, ThemeAssets>
+}
+
+/** Every themeId the deck actually projects with, deck theme first. */
+export function deckThemeIds(deck: SlideDeck): string[] {
+  const ids = new Set<string>([deck.themeId])
+  for (const s of deck.slides) if (s.themeId) ids.add(s.themeId)
+  return [...ids]
 }
 
 /** @deprecated use {@link RenderAssets} */
@@ -46,18 +62,37 @@ export function deckFileName(deck: SlideDeck, titles: string[]): string {
   return `${date} ${first}${more}.pptx`
 }
 
+function assetsFor(deck: SlideDeck, assets: RenderAssets, themeId: string): ThemeAssets {
+  if (themeId === deck.themeId) return assets
+  const own = assets.byTheme?.[themeId]
+  if (!own) throw new Error(`主题 "${getTheme(themeId).name}" 缺少素材`)
+  return own
+}
+
 export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise<PptxGenJS> {
-  const theme = getTheme(deck.themeId)
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
-  const background = { data: bgData(assets.backgroundDataUrl) }
-  const newShadow = () => shadowOf(theme)
-  if (theme.background.kind === 'video' && !assets.videoDataUrl) {
-    throw new Error(`动态主题 "${theme.name}" 需要提供视频文件`)
+
+  // Resolve every theme's assets up front so a missing one fails before we
+  // have written half a deck.
+  const bg = new Map<string, { background: { data: string }; video: string | null }>()
+  for (const themeId of deckThemeIds(deck)) {
+    const t = getTheme(themeId)
+    const own = assetsFor(deck, assets, themeId)
+    if (t.background.kind === 'video' && !own.videoDataUrl) {
+      throw new Error(`动态主题 "${t.name}" 需要提供视频文件`)
+    }
+    bg.set(themeId, {
+      background: { data: bgData(own.backgroundDataUrl) },
+      video: t.background.kind === 'video' ? bgData(own.videoDataUrl!) : null,
+    })
   }
-  const video = theme.background.kind === 'video' ? bgData(assets.videoDataUrl!) : null
 
   for (const slide of deck.slides) {
+    const themeId = slide.themeId ?? deck.themeId
+    const theme = slideTheme(deck, slide)
+    const newShadow = () => shadowOf(theme)
+    const { background, video } = bg.get(themeId)!
     const s = pptx.addSlide()
     s.background = background
     // before every text box, so the clip sits at the back of the slide
@@ -108,10 +143,14 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
  * video decks additionally get one shared clip plus per-slide autoplay timing.
  */
 export async function renderPptxBytes(deck: SlideDeck, assets: RenderAssets): Promise<Uint8Array> {
-  const theme = getTheme(deck.themeId)
   const pptx = await renderPptx(deck, assets)
   const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'uint8array' })) as Uint8Array)
   await dedupeMedia(zip)
-  if (theme.background.kind === 'video') await injectVideoTiming(zip, theme.background.durationMs)
+  // One timing pass covers the deck; with mixed video themes the longest clip
+  // sets it, so no slide cuts its own video short.
+  const longest = deckThemeIds(deck)
+    .map((id) => getTheme(id).background)
+    .reduce((ms, b) => (b.kind === 'video' ? Math.max(ms, b.durationMs) : ms), 0)
+  if (longest > 0) await injectVideoTiming(zip, longest)
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
 }

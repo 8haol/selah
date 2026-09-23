@@ -1,5 +1,5 @@
 import { pinyin, polyphonic } from 'pinyin-pro'
-import type { Song } from './types'
+import type { LyricLine, Song } from './types'
 
 const CJK = /\p{Script=Han}/u
 
@@ -101,4 +101,9 @@ export function polyphonicChoices(char: string): string[] {
 
 export function joinPinyin(pinyinArr: string[]): string {
   return pinyinArr.filter(Boolean).join(' ')
+}
+
+/** The same line with its pinyin row blanked — the 显示拼音 switch, off. */
+export function stripPinyin(line: LyricLine): LyricLine {
+  return { ...line, pinyin: line.pinyin.map(() => '') }
 }

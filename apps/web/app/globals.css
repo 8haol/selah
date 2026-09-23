@@ -2,29 +2,57 @@
 
 @theme {
   /* Type. Fonts load from a Google Fonts CSS2 stylesheet (see app/layout.tsx <head>),
-     which serves unicode-range slices so only the glyphs on the page download. */
-  --font-serif: "Noto Serif SC", "Songti SC", "SimSun", serif;
-  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+     which serves unicode-range slices so only the glyphs on the page download.
+     `display` is the Selah wordmark only; `mono` carries keys, page numbers and
+     step numerals. */
+  --font-sans: "Noto Sans SC", system-ui, -apple-system, "PingFang SC", sans-serif;
+  --font-serif: "Noto Serif SC", "Songti SC", serif;
+  --font-display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Paper-and-ink palette. Dark mode is out of scope. */
-  --color-paper: #f7f4ee;
-  --color-ink: #1e1b18;
-  --color-ink-soft: #6b655c;
-  --color-line: #e6e0d6;
-  --color-card: #ffffff;
-  --color-accent: #4a44a8;
-  --color-accent-soft: #eceaf8;
-  --color-success: #2e7d5b;
-  --color-success-soft: #edf6f1;
-  --color-danger: #b4413c;
-  --color-danger-soft: #fbedec;
+  /* Ink, darkest to lightest. Dark mode is out of scope. */
+  --color-ink: #1d1d1f;
+  --color-ink-2: #3a3a3c;
+  --color-ink-3: #515154;
+  --color-ink-4: #6e6e73;
+  --color-ink-5: #8e8e93;
+  --color-ink-6: #a1a1a6;
 
-  --radius-sm: 6px;
+  /* Terracotta. `accent` on its own, `accent-strong` under a pressed primary
+     button, `accent-link` under a text link, `accent-deep` for text on soft. */
+  --color-accent: #c2542f;
+  --color-accent-strong: #a8451f;
+  --color-accent-link: #9e4122;
+  --color-accent-deep: #8a3a1e;
+  --color-accent-soft: #fbeee8;
+
+  /* Surfaces, lightest to heaviest. */
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfbfa;
+  --color-surface-3: #f5f5f4;
+  --color-surface-4: #f2f2f1;
+
+  /* Hairlines. `line` is the default rule; the rest step up in weight. */
+  --color-line: #f0f0ee;
+  --color-line-2: #eeeeec;
+  --color-line-3: #e8e8e6;
+  --color-line-4: #e3e3e0;
+  --color-line-soft: #ededeb;
+  --color-line-strong: #d2d2cf;
+
+  --color-ink-disabled: #c7c7cc;
+  --color-ok: #34a853;
+
+  --radius-xs: 5px;
+  --radius-sm: 8px;
   --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+  --radius-3xl: 22px;
+  --radius-4xl: 24px;
 
-  /* Motion: 150ms ease-out, hover/focus only. */
+  /* Motion: short, hover/focus only. */
   --default-transition-duration: 150ms;
   --default-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
 }
@@ -32,8 +60,17 @@
 @layer base {
   html,
   body {
-    background: var(--color-paper);
+    background: var(--color-surface);
     color: var(--color-ink);
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Pinyin sits above the character it annotates, everywhere ruby is used. */
+  ruby {
+    ruby-position: over;
   }
 
   /* One accent focus ring for everything; components never remove it. */
@@ -41,4 +78,14 @@
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-ink-6);
+  }
+}
+
+@utility scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-4) transparent;
 }

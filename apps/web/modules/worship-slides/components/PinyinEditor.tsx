@@ -20,7 +20,7 @@ export function PinyinEditor({ sections, overrides, onChange }: { sections: Song
     return [...seen.entries()]
   }, [sections])
 
-  if (rows.length === 0) return <p className="text-xs text-ink-soft">没有多音字需要确认。</p>
+  if (rows.length === 0) return <p className="text-xs text-ink-5">没有多音字需要确认。</p>
 
   const changed = rows.filter(([ch]) => overrides[ch] !== undefined)
   const visible = showAll ? rows : changed
@@ -28,7 +28,7 @@ export function PinyinEditor({ sections, overrides, onChange }: { sections: Song
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-        <span className="text-ink-soft">
+        <span className="text-ink-5">
           多音字 <span className="font-mono text-ink">{rows.length}</span> 个 ·{' '}
           {changed.length > 0 ? <>已改 <span className="font-mono text-accent">{changed.length}</span> 个</> : '已确认默认读音'}
         </span>
@@ -48,12 +48,12 @@ export function PinyinEditor({ sections, overrides, onChange }: { sections: Song
             const current = overrides[ch] ?? def
             const isOverride = overrides[ch] !== undefined
             return (
-              <li key={ch} className={`flex items-center gap-3 rounded-md border bg-card px-3 py-2 ${isOverride ? 'border-accent/45' : 'border-line'}`}>
-                <span className="font-serif text-2xl leading-none text-ink">{ch}</span>
+              <li key={ch} className={`flex items-center gap-3 rounded-md border bg-surface px-3 py-2 ${isOverride ? 'border-accent/45' : 'border-line-2'}`}>
+                <span className="text-2xl leading-none text-ink">{ch}</span>
                 <label className="flex-1">
                   <span className="sr-only">{ch} 的读音</span>
                   <select
-                    className="h-10 w-full rounded-md border border-line bg-paper px-2 text-sm text-ink transition-colors hover:border-ink-soft/50 focus:border-accent"
+                    className="h-10 w-full rounded-md border border-line-2 bg-surface-3 px-2 text-sm text-ink transition-colors hover:border-line-2-strong focus:border-accent"
                     value={current}
                     onChange={(e) => {
                       const next = { ...overrides }

@@ -35,14 +35,34 @@ export const wsSongs = pgTable('ws_songs', {
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (t) => [index('ws_songs_org_idx').on(t.orgId), index('ws_songs_search_idx').on(t.searchKey)])
 
+/** How a whole service projects. One row per setlist; see SETLIST_DEFAULTS. */
+export interface SetlistSettings {
+  /** 每页行数 */
+  linesPerSlide: 1 | 2 | 4
+  /** 字号：大字 */
+  bigText: boolean
+  /** 显示拼音 */
+  pinyin: boolean
+  /** 每首歌前加标题页 */
+  titleSlides: boolean
+  /** 歌与歌之间空白页 */
+  blankBetween: boolean
+}
+
+export const SETLIST_DEFAULTS: SetlistSettings = {
+  linesPerSlide: 2, bigText: false, pinyin: true, titleSlides: true, blankBetween: true,
+}
+
 export const wsSetlists = pgTable('ws_setlists', {
   id: text('id').primaryKey(),
   orgId: text('org_id').notNull().references(() => organizations.id),
   serviceDate: date('service_date'),
   title: text('title').notNull(),
+  settings: jsonb('settings').$type<Partial<SetlistSettings>>().notNull().default({}),
   createdByName: text('created_by_name'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('ws_setlists_org_idx').on(t.orgId)])
 
 export const wsSetlistItems = pgTable('ws_setlist_items', {
   id: text('id').primaryKey(),
@@ -50,7 +70,9 @@ export const wsSetlistItems = pgTable('ws_setlist_items', {
   songId: text('song_id').notNull().references(() => wsSongs.id),
   position: integer('position').notNull(),
   flow: text('flow').notNull(),
-})
+  /** This song's theme inside this setlist. Null falls back to the org default. */
+  themeId: text('theme_id'),
+}, (t) => [index('ws_setlist_items_setlist_idx').on(t.setlistId)])
 
 export const wsDecks = pgTable('ws_decks', {
   id: text('id').primaryKey(),
@@ -66,6 +88,7 @@ export const wsDecks = pgTable('ws_decks', {
 }, (t) => [index('ws_decks_org_idx').on(t.orgId), index('ws_decks_song_idx').on(t.songId)])
 
 export type SongRow = typeof wsSongs.$inferSelect
+export type SetlistItemRow = typeof wsSetlistItems.$inferSelect
 export type NewSongRow = typeof wsSongs.$inferInsert
 export type DeckRow = typeof wsDecks.$inferSelect
 export type SetlistRow = typeof wsSetlists.$inferSelect

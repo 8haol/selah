@@ -106,7 +106,7 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
 
         {error && <Toast tone="danger">{error}</Toast>}
 
-        <div className="sticky bottom-0 z-10 -mx-6 flex flex-wrap items-center gap-3 border-t border-line bg-paper/95 px-6 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
+        <div className="sticky bottom-0 z-10 -mx-6 flex flex-wrap items-center gap-3 border-t border-line-2 bg-surface-3/95 px-6 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
           <Button onClick={submit} loading={pending}>
             {pending ? '保存中' : mode === 'create' ? '保存歌曲' : '保存修改'}
           </Button>
@@ -138,9 +138,9 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
 
       <aside className="space-y-4 lg:sticky lg:top-24">
         <Card as="section" className="p-4">
-          <h2 className="font-serif text-sm font-medium text-ink">识别到的段落</h2>
+          <h2 className="text-sm font-medium text-ink">识别到的段落</h2>
           {sections.length === 0 ? (
-            <p className="mt-2 text-xs leading-6 text-ink-soft">粘贴歌词后这里会显示段落。</p>
+            <p className="mt-2 text-xs leading-6 text-ink-5">粘贴歌词后这里会显示段落。</p>
           ) : (
             <ul className="mt-3 space-y-1.5 text-sm">
               {sections.map((s) => {
@@ -149,7 +149,7 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
                   <li key={s.id}>
                     <div className="flex items-center gap-2">
                       <Badge tone="accent" mono>{s.id}</Badge>
-                      <span className="ml-auto text-xs text-ink-soft"><span className="font-mono">{s.lines.length}</span> 行</span>
+                      <span className="ml-auto text-xs text-ink-5"><span className="font-mono">{s.lines.length}</span> 行</span>
                     </div>
                     {long && (
                       <p className="mt-1.5 rounded-sm border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-xs leading-5 text-amber-800">
@@ -166,7 +166,7 @@ export function SongForm({ mode, song }: { mode: 'create'; song?: undefined } | 
           )}
         </Card>
         <Card as="section" className="p-4">
-          <h2 className="font-serif text-sm font-medium text-ink">多音字确认</h2>
+          <h2 className="text-sm font-medium text-ink">多音字确认</h2>
           <div className="mt-3"><PinyinEditor sections={sections} overrides={overrides} onChange={setOverrides} /></div>
         </Card>
       </aside>

@@ -23,9 +23,9 @@ export function FlowInput({ value, onChange, sections, placeholder, ariaLabel }:
         className={`font-mono tracking-wide ${result.error ? 'border-danger' : ''}`}
       />
       <div className="mt-2 min-h-7 text-xs">
-        {result.error ? <span className="text-danger">{result.error}</span> : (
+        {result.error ? <span className="text-accent-deep">{result.error}</span> : (
           <span className="flex flex-wrap items-center gap-1.5">
-            {!value.trim() && <span className="mr-0.5 text-ink-soft">留空则按段落顺序</span>}
+            {!value.trim() && <span className="mr-0.5 text-ink-5">留空则按段落顺序</span>}
             {result.ids.map((id, i) => <Badge key={i} tone="accent" mono>{id}</Badge>)}
           </span>
         )}
