@@ -5,8 +5,8 @@ export const SLIDE_W_PT = 720
 export const SLIDE_H_PT = 405
 export const CONTENT_X_PT = 36
 export const CONTENT_W_PT = 648
-export const CONTENT_TOP_PT = 56
-export const CONTENT_BOTTOM_PT = 389
+export const CONTENT_TOP_PT = 48
+export const CONTENT_BOTTOM_PT = 393
 export const MAX_SCALE = 64 / 45
 export const PINYIN_RATIO = 35 / 45
 const BASE_ZH_PT = 45
@@ -94,7 +94,7 @@ export function wrapLine(line: LyricLine, zhPt: number, pyPt: number, maxWidthPt
 }
 
 export function rowHeightPt(zhPt: number, pyPt: number): number {
-  return zhPt * 1.05 + pyPt * 1.0
+  return zhPt * 1.02 + pyPt * 0.98
 }
 
 function pyFor(zhPt: number): number { return Math.round(zhPt * PINYIN_RATIO * 2) / 2 }
@@ -115,7 +115,7 @@ export function layoutSlide(lines: LyricLine[], theme: Theme): SlideLayout {
   const contentH = CONTENT_BOTTOM_PT - CONTENT_TOP_PT
   const maxRows = Math.min(theme.maxLinesPerSlide, lines.flatMap((line) => wrapLine(line, BASE_ZH_PT, pyFor(BASE_ZH_PT))).length)
   for (let scale = MAX_SCALE; scale >= 1 - 1e-9; scale -= 0.02) {
-    const lay = attempt(lines, Math.max(1, scale), 8)
+    const lay = attempt(lines, Math.max(1, scale), 6)
     if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
   }
   const tight = attempt(lines, 1, 0)
