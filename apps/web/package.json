@@ -13,6 +13,7 @@
     "db:migrate": "tsx db/migrate.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.73",
     "@electric-sql/pglite": "^0.5.8",
     "@neondatabase/serverless": "^1.1.0",
     "@selah/slide-engine": "workspace:*",

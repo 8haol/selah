@@ -1,11 +1,17 @@
 import { generateText, Output } from 'ai'
+import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 
-// A photographed page can take a while to read; the default 10s is too tight.
-export const maxDuration = 60
+// Reading a dense page with reasoning on takes 20–50s.
+export const maxDuration = 120
 
-/** Overridable so a cheaper or newer model is one env var away. */
-const MODEL = process.env.SELAH_OCR_MODEL || 'anthropic/claude-sonnet-5'
+/**
+ * Recognition runs on the church's own OpenAI key and nothing else, so the
+ * only money it can spend is that account's prepaid balance. When the balance
+ * is gone OpenAI refuses the call and the page says so.
+ */
+const MODEL = process.env.SELAH_OCR_MODEL || 'gpt-5.2'
+const EFFORT = (process.env.SELAH_OCR_EFFORT || 'medium') as 'low' | 'medium' | 'high'
 
 // The browser shrinks every page to a JPEG first, so these only stop abuse.
 const MAX_FILES = 4
@@ -31,21 +37,32 @@ export type RecognizeResult = z.infer<typeof resultSchema>
 
 const PROMPT = `这是一首敬拜诗歌的歌谱（五线谱或简谱，可能有多页）。请把它转成投影用的歌词。
 
-规则：
+读歌词：
 - 只要歌词。忽略音符、简谱数字、和弦（如 E、C#m7、B/D#）、速度、小节号、页脚的制谱信息。
-- 歌词逐字照抄歌谱上的字，繁体就写繁体，简体就写简体，不要改写、不要补字，也不要加标点。
-- 一行 = 一个乐句，通常 4 到 12 个字。按旋律的自然停顿断行，不要按歌谱的排版换行。
-- 同一段旋律下面印了几行歌词（第 1、2、3… 节），每一节是一个单独的主歌：V1、V2、V3…
-- 反复记号、1./2. 房子、D.S.、Fine 要展开成真实的演唱顺序，写进 flow。重复唱的段落在 sections 里只出现一次。
-- 能看出副歌（通常是情绪最高、最常重复的部分）就标 C，前面引向副歌的短段标 PC，只唱一次的对比段落标 B。
-  分不清就都用 V1、V2…，不要硬猜。
-- 1./2. 房子里只差最后几个字的，把两个结尾分别放进各自的段落里，不要丢字。
-- title 用歌谱上的歌名；key 优先看"1=X"，否则看调号和第一个和弦。`
+- 逐字照抄歌谱上的字：繁体就写繁体，简体就写简体，不改写、不补字、不加标点。
+- 多节歌词：一行旋律下面印了几行字，就是第 1、2、3… 节。每一节都要沿着"同一行"跨过所有谱行读下去——
+  第 1 节 = 每个谱行下面第 1 行歌词依次接起来，第 2 节 = 每个谱行下面第 2 行，以此类推。绝不能把不同行的字混在一起。
+  每一节是一个单独的段落：V1、V2、V3…
+- 读完以后自己检查一遍：每一节的字数应该和旋律的音符数大致相同，几节之间字数也应该差不多。
+
+分行：
+- 一行是投影片上的一行，一般 5 到 12 个字，通常对应一个完整乐句（大约两小节）。
+- 不要拆成两三个字的碎片；乐句中间的短停顿用一个空格隔开，不要换行。
+
+分段和顺序：
+- 反复记号（‖: :‖）里的段落要唱两遍，1./2. 房子、D.S.、Fine 也要展开，按真实演唱顺序写进 flow。重复唱的段落在 sections 里只写一次。
+- 反复之后出现的新旋律、情绪最高、歌词里常有"我心""主啊"这类呼喊的部分，通常是副歌，标 C。
+  引向副歌的短段标 PC，只唱一次的对比段落标 B，结尾额外的一句标 E。只有多节同旋律的诗歌才全部用 V1、V2…
+- 1./2. 房子里只差几个字的，把各自结尾的字放进各自的段落，不要丢字。
+
+其他：
+- title 用歌谱上的歌名；artist 只写词曲作者的名字（例如"John Newton / E. O. Excell"），没有就 null。
+- key 优先看"1=X"，否则看调号和第一个和弦。`
 
 function friendly(e: unknown): string {
   const text = e instanceof Error ? `${e.message} ${String((e as { responseBody?: unknown }).responseBody ?? '')}` : String(e)
-  if (/credit card|customer_verification/i.test(text)) return '识别服务还没开通：需要在 Vercel 的 AI Gateway 里绑卡解锁免费额度。'
-  if (/insufficient|quota|credits/i.test(text)) return '这个月的免费识别额度用完了，先用粘贴歌词。'
+  if (/insufficient_quota|exceeded your current quota|billing/i.test(text)) return 'AI 额度用完了，暂时不能识别歌谱。先用「粘贴歌词」，或者请管理员充值。'
+  if (/invalid_api_key|incorrect api key|401/i.test(text)) return 'AI 识别的密钥无效，请管理员检查 OPENAI_API_KEY。'
   if (/rate.?limit|429/i.test(text)) return '识别请求太多了，等一分钟再试。'
   return '没能识别这份歌谱。换一张更清楚的照片，或者先粘贴歌词。'
 }
@@ -59,10 +76,15 @@ export async function POST(req: Request) {
   const parsed = requestSchema.safeParse(body)
   if (!parsed.success) return Response.json({ ok: false, message: '只能识别图片或 PDF，一次最多 4 页。' }, { status: 400 })
 
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return Response.json({ ok: false, message: 'AI 识别还没配置好，先用「粘贴歌词」。' }, { status: 503 })
+
   try {
     const { output } = await generateText({
-      model: MODEL,
+      model: createOpenAI({ apiKey })(MODEL),
       output: Output.object({ schema: resultSchema }),
+      // Reading stanzas across staff systems needs the model to think first.
+      providerOptions: { openai: { reasoningEffort: EFFORT } },
       messages: [{
         role: 'user',
         content: [
