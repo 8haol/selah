@@ -1,23 +1,28 @@
 import type { Metadata } from 'next'
+import { cache } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getDeck } from '@/modules/worship-slides/actions'
 import { DeckPreview } from '@/modules/worship-slides/components/DeckPreview'
 import { DownloadPptxButton } from '@/modules/worship-slides/components/DownloadPptxButton'
+import { DeleteDeckButton } from '@/modules/worship-slides/components/DeleteDeckButton'
 import { getTheme } from '@selah/slide-engine'
 import { Badge, Card, buttonClass } from '@/modules/worship-slides/components/ui'
 
 export const dynamic = 'force-dynamic'
 
+// metadata and the page ask for the same row; fetch it once per request
+const load = cache(getDeck)
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
-  const row = await getDeck(id)
+  const row = await load(id)
   return { title: row?.titles.length ? row.titles.join(' · ') : '生成记录' }
 }
 
 export default async function DeckPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const row = await getDeck(id)
+  const row = await load(id)
   if (!row) notFound()
   const theme = getTheme(row.themeId)
   return (
@@ -40,6 +45,7 @@ export default async function DeckPage({ params }: { params: Promise<{ id: strin
             </Link>
           )}
           <DownloadPptxButton deck={row.deck} titles={row.titles} />
+          <DeleteDeckButton id={row.id} redirectTo="/worship" className="self-center px-4 py-2 text-sm" />
         </div>
       </header>
 

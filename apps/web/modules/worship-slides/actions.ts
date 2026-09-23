@@ -204,3 +204,16 @@ export async function listRecentDecks(limit = 10): Promise<DeckRow[]> {
   const db = await getDb()
   return db.select().from(wsDecks).where(eq(wsDecks.orgId, orgId)).orderBy(desc(wsDecks.createdAt)).limit(limit)
 }
+
+/**
+ * A deck is a generated snapshot — the setlist and songs it came from stay put,
+ * so removing one from 最近的敬拜 loses nothing that can't be generated again.
+ */
+export async function deleteDeck(id: string): Promise<ActionResult> {
+  try {
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    await db.delete(wsDecks).where(and(eq(wsDecks.id, id), eq(wsDecks.orgId, orgId)))
+    return { ok: true }
+  } catch (e) { return failure(e) }
+}

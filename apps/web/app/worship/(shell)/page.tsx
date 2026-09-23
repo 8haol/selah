@@ -6,13 +6,14 @@ import { getCurrentSetlist, getDefaultThemeId, nextServiceDate } from '@/modules
 import { SlideView } from '@/modules/worship-slides/components/SlideView'
 import { StartServiceButton } from '@/modules/worship-slides/components/StartServiceButton'
 import { AddToServiceButton } from '@/modules/worship-slides/components/AddToServiceButton'
+import { DeleteDeckButton } from '@/modules/worship-slides/components/DeleteDeckButton'
 import { typeName } from '@/modules/worship-slides/section-name'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: '工作台' }
 
 const SHORTCUTS = [
-  { href: '/worship/import', title: '导入新歌', sub: '粘贴歌词、上传 Word / PDF，或拍照识别' },
+  { href: '/worship/import', title: '导入新歌', sub: '上传歌谱图片自动识别，或粘贴歌词' },
   { href: '/worship/library', title: '浏览歌库', sub: '分好段的歌，直接加进歌单' },
 ] as const
 
@@ -21,17 +22,23 @@ function DeckCard({ deck, titles, id }: { deck: SlideDeck; titles: string[]; id:
   const slide = deck.slides.find((s) => s.kind === 'lyrics') ?? deck.slides[0]
   const pages = deck.slides.length
   return (
-    <Link href={`/worship/decks/${id}`} className="flex flex-col gap-2.5">
-      <div className="overflow-hidden rounded-lg border border-line-soft">
-        {slide ? <SlideView slide={slide} theme={slideTheme(deck, slide)} static frameClassName="" /> : <div className="aspect-video bg-surface-3" />}
-      </div>
-      <div>
-        <div className="truncate text-[14.5px] font-semibold">{titles.join(' · ')}</div>
-        <div className="mt-[3px] text-[13px] text-ink-5">
-          {titles.length} 首 · {pages} 页 · {getTheme(deck.themeId).name.split(' · ')[0]}
+    <div className="group relative">
+      <Link href={`/worship/decks/${id}`} className="flex flex-col gap-2.5">
+        <div className="overflow-hidden rounded-lg border border-line-soft">
+          {slide ? <SlideView slide={slide} theme={slideTheme(deck, slide)} static frameClassName="" /> : <div className="aspect-video bg-surface-3" />}
         </div>
-      </div>
-    </Link>
+        <div>
+          <div className="truncate text-[14.5px] font-semibold">{titles.join(' · ')}</div>
+          <div className="mt-[3px] text-[13px] text-ink-5">
+            {titles.length} 首 · {pages} 页 · {getTheme(deck.themeId).name.split(' · ')[0]}
+          </div>
+        </div>
+      </Link>
+      <DeleteDeckButton
+        id={id}
+        className="absolute right-2 top-2 shadow-sm md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100"
+      />
+    </div>
   )
 }
 
