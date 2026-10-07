@@ -1,41 +1,61 @@
 # Selah
 
-教会工具平台（Portal）。一个可以不断增加模块的集合地：敬拜、排班、活动、行政……
-目前服务 CCIL 国语堂，架构上从第一天起按多教会 / 多组织设计。
+**Worship slides for Chinese-speaking churches.** Type or photograph a song's lyrics, pick an arrangement (`V1 C V2 C B C`) and a theme, and download a PowerPoint deck. Every Chinese character in the deck has its pinyin aligned above it, and the type is sized to stay readable from the back row.
 
-> Selah（סֶלָה）：诗篇中给乐师的指示——停、静、扬起。
+Live: **https://selah-8haol.vercel.app** (no login)
 
-## 第一个模块：Worship Slides（敬拜歌词投影生成器）
+> Selah (סֶלָה): the word in the Psalms that tells the musicians to pause and lift.
 
-录入歌名和各段歌词 → 选 flow（如 `V1 C V2 C B C`）→ 选主题 →
-一键生成全字带拼音（Arial 35）、中文微软雅黑 45、对比度足够的 PPTX。
-歌曲进库，下次直接复用；flow 错了改一下重新生成。免登录，打开即用。
+## Why it exists
 
-## 线上地址
+Selah was built for a Mandarin-speaking congregation in London, where lyric slides were made by hand in PowerPoint to a fixed template: pinyin over every character (Arial 35), Chinese in a heavy sans (45), and readable contrast on the projector. Selah encodes that template once. Songs live in a shared library, and a setlist is regenerated in one click when the arrangement changes.
 
-**https://selah-8haol.vercel.app** — 免登录，打开即用。Phase 1 已上线：17 套主题（12 静态 + 5 动态视频）、逐字拼音对齐、自动放大字号、PPTX 一键下载、歌库与历史版本。
+## What's interesting in here
 
-## 文档
+- **Per-character pinyin layout engine** — [`packages/slide-engine`](packages/slide-engine). This is a framework-free TypeScript package covered by 100+ tests.
+  - It turns lyrics, a flow and a theme into a deck model ([`deck.ts`](packages/slide-engine/src/deck.ts)), then lays out lines so each character's pinyin sits exactly over it ([`layout.ts`](packages/slide-engine/src/layout.ts)).
+  - Text auto-scales to fill the slide without overflowing.
+  - Pinyin readings are corrected for words that church texts pronounce differently from the dictionary, such as 祢 ([`pinyin.ts`](packages/slide-engine/src/pinyin.ts)).
+- **PPTX that PowerPoint actually likes** — [`pptx.ts`](packages/slide-engine/src/pptx.ts) and [`pptx-post.ts`](packages/slide-engine/src/pptx-post.ts).
+  - Decks are generated with pptxgenjs.
+  - The output is then post-processed at the XML level. This deduplicates shared media and injects PowerPoint's own autoplay/loop timing tree, so the video backgrounds loop on their own.
+  - The findings behind these choices are in the [Phase 0 spike](spikes/pptx-pinyin/FINDINGS.md).
+- **Contrast-checked themes** — [`contrast.ts`](packages/slide-engine/src/contrast.ts) and [`themes.ts`](packages/slide-engine/src/themes.ts). There are 17 themes: 12 still and 5 looping video. The backgrounds are rendered procedurally by [`build-backgrounds.mjs`](packages/slide-engine/scripts/build-backgrounds.mjs), and every theme is checked against a contrast floor.
+- **Sheet-music recognition** — [`apps/web/app/api/worship/recognize`](apps/web/app/api/worship/recognize/route.ts). Photograph a score (staff or numbered notation) and a vision model returns the title, sections and the sung order with repeats expanded, validated against a zod schema.
+- **Zero-setup local dev** — Postgres via Neon in production and PGlite in-process locally, both behind Drizzle ([`apps/web/db`](apps/web/db)). `pnpm dev` needs no database.
 
-- 设计文档：[docs/superpowers/specs/2026-09-22-platform-and-worship-slides-design.md](docs/superpowers/specs/2026-09-22-platform-and-worship-slides-design.md)
-- Phase 0 技术验证结论：[spikes/pptx-pinyin/FINDINGS.md](spikes/pptx-pinyin/FINDINGS.md)
+## Stack
 
-## 本地运行
+Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · Drizzle ORM · Neon Postgres / PGlite · pptxgenjs · pinyin-pro · Vercel AI SDK · Vitest · pnpm workspaces
+
+```
+apps/web               Next.js app: song library, editor, setlists, export
+packages/slide-engine  pure TS: lyrics parsing, flow, pinyin, layout, themes, PPTX
+spikes/pptx-pinyin     Phase 0 experiments and findings
+```
+
+## Run it
 
 ```bash
 pnpm install
-pnpm --filter @selah/web db:seed   # 可选：写入一首示例歌
-pnpm dev                            # http://localhost:3000
+pnpm --filter @selah/web db:seed   # optional: one sample song
+pnpm dev                           # http://localhost:3000/worship
+pnpm test                          # all workspaces
+pnpm typecheck
 ```
-本地不需要任何数据库：留空 `DATABASE_URL` 时数据存在 `apps/web/.data/pglite/`。
 
-## 部署（Vercel + Neon）
+With `DATABASE_URL` empty, data lives in `apps/web/.data/pglite/`. Sheet recognition needs `OPENAI_API_KEY`; everything else works without it.
 
-1. Vercel 新建项目，导入 `8haol/selah`，Root Directory 设为 `apps/web`，Framework 选 Next.js。
-2. Storage → 添加 Neon Postgres（免费档），Vercel 会自动注入 `DATABASE_URL`。
-3. 在 Environment Variables 里加 `SELAH_AUTO_MIGRATE=1`（首次部署自动建表；之后可删）。
-4. Deploy。打开域名 → `/worship`。
+### Deploy (Vercel + Neon)
 
-## 技术栈
+1. Import the repo in Vercel, set Root Directory to `apps/web`, framework Next.js.
+2. Add Neon Postgres under Storage; Vercel injects `DATABASE_URL`.
+3. Set `SELAH_AUTO_MIGRATE=1` for the first deploy so tables are created.
 
-Next.js 16 · TypeScript · Tailwind CSS 4 · Neon Postgres (PGlite locally) · Drizzle ORM · pptxgenjs · pinyin-pro · Vercel
+## 中文简介
+
+教会工具平台，第一个模块是敬拜歌词投影生成器：录入或拍照识别歌词，选 flow 和主题，一键生成逐字带拼音、字号和对比度都达标的 PPTX。歌曲进库可复用，免登录。
+
+## License
+
+Code: [MIT](LICENSE). Song lyrics used as sample data and in tests belong to their respective copyright holders and are included only to exercise the software.
