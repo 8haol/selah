@@ -1,6 +1,6 @@
 'use server'
 
-import { and, asc, desc, eq, inArray, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql, type SQLWrapper } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { cache } from 'react'
@@ -9,6 +9,7 @@ import { orgModules, wsDecks, wsSongs, wsSetlists, wsSetlistItems, SETLIST_DEFAU
 import { getCurrentContext } from '@/core/context'
 import { rowToSong } from './song-row'
 import { setlistDeck } from './setlist-settings'
+import { churchToday, nextSunday } from './service-date'
 import { BUILTIN_THEMES, parseFlow, pruneFlow, type DeckEdits, type SlideDeck, type Song } from '@selah/slide-engine'
 import type { ActionResult } from './actions'
 
@@ -45,14 +46,6 @@ function failure(e: unknown): { ok: false; message: string } {
 }
 
 const safeTheme = (id: string | null | undefined, fallback: string) => (id && themeIds.has(id) ? id : fallback)
-
-/** The Sunday on or after today, as YYYY-MM-DD in the church's own calendar. */
-function nextSunday(now = new Date()): string {
-  const d = new Date(now)
-  d.setHours(12, 0, 0, 0)
-  d.setDate(d.getDate() + ((7 - d.getDay()) % 7))
-  return d.toISOString().slice(0, 10)
-}
 
 /** The Sunday the dashboard counts down to when no setlist exists yet. */
 export async function nextServiceDate(): Promise<string> {
@@ -144,11 +137,20 @@ export async function getSetlist(id: string): Promise<SetlistView | null> {
   return rows[0] ? toView(rows[0], items, defaultThemeId) : null
 }
 
-/** The setlist the sidebar calls 本周 — the most recently touched service. Drafts never count. */
+/**
+ * The setlist the sidebar calls 本周 — the most recently touched service whose
+ * Sunday has not passed yet. Drafts never count. From Monday on, last week's
+ * service steps aside (its exported decks stay under 最近的敬拜) and 开始创建
+ * starts one for the coming Sunday.
+ */
 const loadCurrentSetlist = cache(async (): Promise<SetlistView | null> => {
   const { orgId } = await getCurrentContext()
   const db = await getDb()
-  const services = and(eq(wsSetlists.orgId, orgId), eq(wsSetlists.kind, 'service'))
+  const services = and(
+    eq(wsSetlists.orgId, orgId),
+    eq(wsSetlists.kind, 'service'),
+    or(isNull(wsSetlists.serviceDate), gte(wsSetlists.serviceDate, churchToday())),
+  )
   const latest = () =>
     db.select({ id: wsSetlists.id }).from(wsSetlists).where(services).orderBy(desc(wsSetlists.updatedAt)).limit(1)
   const [rows, items, defaultThemeId] = await Promise.all([
