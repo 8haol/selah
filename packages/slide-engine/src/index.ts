@@ -8,6 +8,8 @@ export { BUILTIN_THEMES, getTheme, tunedTheme, themeCategory, slideTheme } from 
 export * from './layout'
 export { buildDeck, songMeta, paginateLines } from './deck'
 export type { BuildDeckInput } from './deck'
+export { applyDeckEdits, slideKeys, slideText } from './edits'
+export type { ApplyEditsOptions } from './edits'
 export { renderPptx, renderPptxBytes, deckFileName, deckThemeIds } from './pptx'
 export type { RenderAssets, ThemeAssets, RenderPptxOptions } from './pptx'
 export { dedupeMedia, injectVideoTiming } from './pptx-post'
