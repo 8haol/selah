@@ -23,6 +23,7 @@ import { typeName } from '../section-name'
 import { deckDisplay, setlistDeck } from '../setlist-settings'
 import { SetlistTitle } from './SetlistTitle'
 import { DeleteDraftButton } from './DeleteDraftButton'
+import { PromoteDraftButton } from './PromoteDraftButton'
 import { AddSongModal, ExportModal, type ExportRow } from './SetlistModals'
 import { DeckOverview } from './DeckOverview'
 
@@ -405,6 +406,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
         <span className="h-5 w-px flex-none bg-line-3" />
         <SetlistTitle id={setlistId} title={initial.title} />
         <span className="hidden flex-none text-[13px] text-ink-5 sm:inline">改动自动保存</span>
+        {initial.kind === 'draft' && <PromoteDraftButton id={setlistId} />}
         {initial.kind === 'draft' && <DeleteDraftButton id={setlistId} />}
         <div className="ml-auto flex flex-none items-center gap-3.5">
           <span className="hidden text-[13.5px] text-ink-4 sm:inline">{summary}</span>

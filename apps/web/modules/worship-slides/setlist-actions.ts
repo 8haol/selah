@@ -242,6 +242,43 @@ export async function renameSetlist(setlistId: string, title: string): Promise<A
   } catch (e) { return failure(e) }
 }
 
+/**
+ * 设为本周主日: a draft becomes the coming Sunday's service, songs, flows,
+ * themes and 总览 edits included. An empty 本周 makes way for it; one that
+ * already has songs is never hidden behind it.
+ */
+export async function promoteDraft(setlistId: string): Promise<ActionResult> {
+  try {
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    const rows = await db
+      .select()
+      .from(wsSetlists)
+      .where(and(eq(wsSetlists.id, setlistId), eq(wsSetlists.orgId, orgId), eq(wsSetlists.kind, 'draft')))
+      .limit(1)
+    const draft = rows[0]
+    if (!draft) return { ok: false, message: '只有制作可以设为本周主日' }
+
+    const current = await getCurrentSetlist()
+    if (current && current.songs.length > 0) {
+      return { ok: false, message: `本周已经有「${current.title}」了，先打开它把歌删掉，或者把歌加到它里面` }
+    }
+    if (current) {
+      await db.update(wsDecks).set({ setlistId: null }).where(eq(wsDecks.setlistId, current.id))
+      await db.delete(wsSetlistItems).where(eq(wsSetlistItems.setlistId, current.id))
+      await db.delete(wsSetlists).where(eq(wsSetlists.id, current.id))
+    }
+
+    const date = nextSunday()
+    const title = draft.title === DRAFT_TITLE ? await defaultServiceTitle(date) : draft.title
+    await db
+      .update(wsSetlists)
+      .set({ kind: 'service', serviceDate: date, title, updatedAt: new Date() })
+      .where(eq(wsSetlists.id, setlistId))
+    return { ok: true }
+  } catch (e) { return failure(e) }
+}
+
 /** Only drafts can go. Decks it exported stay under 最近的敬拜, just unlinked. */
 export async function deleteDraft(setlistId: string): Promise<ActionResult> {
   try {
