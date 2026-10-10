@@ -3,13 +3,13 @@ import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   annotateLine, buildDeck, deckFileName, getTheme, parseFlow, pruneFlow, renderPptxBytes,
-  sectionIdFor, slideTheme, tunedTheme, type Slide, type SongSection,
+  sectionIdFor, slideKeys, slideTheme, tunedTheme, type DeckEdits, type Slide, type SongSection,
 } from '@selah/slide-engine'
 import type { SetlistSettings } from '@/db/schema'
 import type { SetlistView } from '../setlist-actions'
 import {
   addSongToSetlist, getSetlist, removeSetlistItem, reorderSetlist, saveSetlistDeck,
-  setSetlistTheme, updateSetlistItem, updateSetlistSettings,
+  setSetlistTheme, updateSetlistEdits, updateSetlistItem, updateSetlistSettings,
 } from '../setlist-actions'
 import { updateSongPinyin, updateSongSections, updateSongTitle } from '../actions'
 import { fetchDeckAssets } from '../deck-assets'
@@ -20,10 +20,11 @@ import { FindReplace } from './FindReplace'
 import { carrySpotFixes, replaceCharAt, replaceInSong, type SongText } from '../replace'
 import { FlowPanel, LyricsPanel, SettingsPanel, ThemePanel } from './SetlistPanels'
 import { typeName } from '../section-name'
-import { deckDisplay } from '../setlist-settings'
+import { deckDisplay, setlistDeck } from '../setlist-settings'
 import { SetlistTitle } from './SetlistTitle'
 import { DeleteDraftButton } from './DeleteDraftButton'
 import { AddSongModal, ExportModal, type ExportRow } from './SetlistModals'
+import { DeckOverview } from './DeckOverview'
 
 type Tab = 'lyrics' | 'flow' | 'theme' | 'set'
 
@@ -56,6 +57,8 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const [page, setPage] = useState(0)
   const [tab, setTab] = useState<Tab>('lyrics')
   const [addOpen, setAddOpen] = useState(initial.songs.length === 0)
+  /** 总览: every slide, looked over before the export dialog. */
+  const [overviewOpen, setOverviewOpen] = useState(false)
   const [dlOpen, setDlOpen] = useState(false)
   const [dlDone, setDlDone] = useState(false)
   const [fileName, setFileName] = useState('')
@@ -66,26 +69,38 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   const [pickAt, setPickAt] = useState<(CharPick & { where: string }) | null>(null)
   const [, start] = useTransition()
   const dragItem = useRef<number | null>(null)
+  /** The last 总览 save, so the export waits for it. */
+  const editsSaving = useRef<Promise<unknown>>(Promise.resolve())
 
   const setlistId = initial.id
   const index = Math.min(cur, Math.max(0, songs.length - 1))
   const song = songs[index]
 
-  /** One build covers the whole service: the summary, the rail and the preview. */
+  // a half-typed blank line should not become a blank row on the projector
+  const cleanSongs = useMemo(
+    () => songs.map((s) => ({
+      ...s,
+      song: { ...s.song, sections: s.song.sections.map((sec) => ({ ...sec, lines: sec.lines.filter((l) => l.zh.trim()) })) },
+    })),
+    [songs],
+  )
+
+  /** The songs as generated: the rail and the preview, where a character maps back to its song. */
   const deck = useMemo(() => {
-    if (songs.length === 0) return null
+    if (cleanSongs.length === 0) return null
     return buildDeck({
-      // a half-typed blank line should not become a blank row on the projector
-      songs: songs.map((s) => ({
-        ...s.song,
-        sections: s.song.sections.map((sec) => ({ ...sec, lines: sec.lines.filter((l) => l.zh.trim()) })),
-      })),
-      flows: Object.fromEntries(songs.map((s) => [s.song.id, s.flow.join(' ')])),
-      themes: Object.fromEntries(songs.map((s) => [s.song.id, s.themeId])),
-      themeId: songs[0]!.themeId,
+      songs: cleanSongs.map((s) => s.song),
+      flows: Object.fromEntries(cleanSongs.map((s) => [s.song.id, s.flow.join(' ')])),
+      themes: Object.fromEntries(cleanSongs.map((s) => [s.song.id, s.themeId])),
+      themeId: cleanSongs[0]!.themeId,
       ...deckDisplay(settings),
     })
-  }, [songs, settings])
+  }, [cleanSongs, settings])
+  /** What will be exported: the deck with the 总览's edits, removed slides kept and marked. */
+  const overview = useMemo(() => setlistDeck(cleanSongs, settings, { showRemoved: true }), [cleanSongs, settings])
+  const exported = useMemo(() => overview?.slides.filter((s) => s.edit !== 'removed') ?? [], [overview])
+  const editOfKey = useMemo(() => new Map(overview?.slides.map((s) => [s.key, s.edit]) ?? []), [overview])
+  const keys = useMemo(() => (deck ? slideKeys(deck) : []), [deck])
 
   const pages = useMemo(
     () => (deck && song ? deck.slides.filter((s) => s.songId === song.song.id) : []),
@@ -93,7 +108,8 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   )
   const pi = Math.min(page, Math.max(0, pages.length - 1))
   const slide = pages[pi]
-  const total = deck?.slides.length ?? 0
+  const total = exported.length
+  const slideEdit = slide && deck ? editOfKey.get(keys[deck.slides.indexOf(slide)]) : undefined
   // a pick belongs to the slide it was made on; turning the page drops it
   const here = `${song?.itemId}:${pi}`
   const pick = pickAt?.where === here ? pickAt : null
@@ -111,7 +127,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
     const line = sec.lines.findIndex((l) => l.zh.trim() !== '' && ++seen === k)
     return line < 0 ? null : { sectionId: sec.id, line }
   })()
-  const pageCountOf = (songId: string) => (deck?.slides.filter((s) => s.songId === songId).length ?? 0)
+  const pageCountOf = (songId: string) => exported.filter((s) => s.songId === songId).length
 
   const editorTheme = song ? tunedTheme(getTheme(song.themeId), settings) : null
   const sample: Slide = useMemo(
@@ -258,14 +274,14 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || addOpen || dlOpen) return
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || addOpen || dlOpen || overviewOpen) return
       if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return
       e.preventDefault()
       setPage(e.key === 'ArrowLeft' ? Math.max(0, pi - 1) : Math.min(pages.length - 1, pi + 1))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pi, pages.length, addOpen, dlOpen])
+  }, [pi, pages.length, addOpen, dlOpen, overviewOpen])
 
   const saveFlow = (i: number, flow: string[]) => {
     const s = songs[i]!
@@ -339,12 +355,19 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
     })
   }
 
+  /** 总览's changes: shown at once, saved in the background. */
+  const onEdits = (edits: DeckEdits) => {
+    setSettings((s) => ({ ...s, edits }))
+    editsSaving.current = updateSetlistEdits(setlistId, edits).then((r) => { if (!r.ok) setError(r.message) })
+  }
+
   /* -------------------------------------------------------------- export */
 
   const download = async () => {
     if (!deck) return
     setBusy(true); setError(null); setNote(null)
     try {
+      await editsSaving.current
       const saved = await saveSetlistDeck(setlistId)
       if (!saved.ok) throw new Error(saved.message)
 
@@ -387,7 +410,7 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
           <span className="hidden text-[13.5px] text-ink-4 sm:inline">{summary}</span>
           <button
             type="button"
-            onClick={() => { if (songs.length) { setDlOpen(true); setDlDone(false); setError(null) } }}
+            onClick={() => { if (songs.length) { setOverviewOpen(true); setError(null) } }}
             disabled={songs.length === 0}
             className={cx(
               'rounded-full px-5 py-2.5 font-semibold text-white transition-colors',
@@ -571,6 +594,10 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
                     onClose={() => setPickAt(null)}
                   />
                 </div>
+              ) : slideEdit === 'removed' || slideEdit === 'rewritten' ? (
+                <p className="text-[12.5px] text-accent">
+                  这一页在总览里{slideEdit === 'removed' ? '删掉了' : '改过字'}，导出以总览为准
+                </p>
               ) : (
                 slide && (slide.kind === 'lyrics' || slide.kind === 'title') && (
                   <p className="text-[12.5px] text-ink-5">{settings.pinyin ? '字或拼音不对？' : '字不对？'}点投影片上的字就能改 · ← → 翻页</p>
@@ -634,6 +661,20 @@ export function SetlistEditor({ initial }: { initial: SetlistView }) {
           inSetlist={new Set(songs.map((s) => s.song.id))}
           onAdd={onAddSong}
           onClose={() => setAddOpen(false)}
+        />
+      )}
+
+      {overviewOpen && overview && (
+        <DeckOverview
+          deck={overview}
+          edits={settings.edits ?? {}}
+          titles={Object.fromEntries(songs.map((s) => [s.song.id, s.song.title]))}
+          showPinyin={settings.pinyin}
+          title={initial.title}
+          error={error}
+          onChange={onEdits}
+          onBack={() => setOverviewOpen(false)}
+          onNext={() => { setOverviewOpen(false); setDlOpen(true); setDlDone(false); setError(null) }}
         />
       )}
 
