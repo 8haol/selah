@@ -5,12 +5,11 @@ process.env.PGLITE_DIR = 'memory://'
 delete process.env.DATABASE_URL
 
 const { getDb } = await import('@/db/client')
-const { wsSongs, wsDecks, wsSetlists } = await import('@/db/schema')
+const { wsSongs, wsDecks } = await import('@/db/schema')
 const { getCurrentContext } = await import('@/core/context')
 const {
   addSongToSetlist, createDraft, deleteDraft, getCurrentSetlist, getSetlist, listDrafts, renameSetlist, startSetlist,
 } = await import('./setlist-actions')
-const { nextSunday } = await import('./service-date')
 
 let songId = ''
 
@@ -86,22 +85,5 @@ describe('drafts', () => {
     if (!s.ok) throw new Error('setup failed')
     expect((await deleteDraft(s.id)).ok).toBe(false)
     expect(await getSetlist(s.id)).not.toBeNull()
-  })
-})
-
-describe('本周', () => {
-  it('lets last week\'s service go once its Sunday has passed', async () => {
-    const { orgId } = await getCurrentContext()
-    const db = await getDb()
-    // the newest service by far, but for a Sunday long gone
-    await db.insert(wsSetlists).values({
-      id: 'set_past', orgId, serviceDate: '2020-01-05', title: '1 月 5 日 主日敬拜', updatedAt: new Date(Date.now() + 3_600_000),
-    })
-
-    expect((await getCurrentSetlist())?.id).not.toBe('set_past')
-    const s = await startSetlist()
-    if (!s.ok) throw new Error('setup failed')
-    expect(s.id).not.toBe('set_past')
-    expect((await getSetlist(s.id))!.serviceDate! >= nextSunday()).toBe(true)
   })
 })

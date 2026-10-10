@@ -1,6 +1,6 @@
 'use server'
 
-import { and, asc, desc, eq, gte, inArray, isNull, or, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql, type SQLWrapper } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { cache } from 'react'
@@ -138,19 +138,16 @@ export async function getSetlist(id: string): Promise<SetlistView | null> {
 }
 
 /**
- * The setlist the sidebar calls 本周 — the most recently touched service whose
- * Sunday has not passed yet. Drafts never count. From Monday on, last week's
- * service steps aside (its exported decks stay under 最近的敬拜) and 开始创建
- * starts one for the coming Sunday.
+ * The setlist the sidebar calls 本周 — the most recently touched service.
+ * Drafts never count. Once its Sunday has passed it is either done — exported,
+ * and not touched since that Sunday — and steps aside so 开始创建 starts the
+ * next one (its decks stay under 最近的敬拜); or it is still being prepared,
+ * and moves on to the coming Sunday, default title included.
  */
 const loadCurrentSetlist = cache(async (): Promise<SetlistView | null> => {
   const { orgId } = await getCurrentContext()
   const db = await getDb()
-  const services = and(
-    eq(wsSetlists.orgId, orgId),
-    eq(wsSetlists.kind, 'service'),
-    or(isNull(wsSetlists.serviceDate), gte(wsSetlists.serviceDate, churchToday())),
-  )
+  const services = and(eq(wsSetlists.orgId, orgId), eq(wsSetlists.kind, 'service'))
   const latest = () =>
     db.select({ id: wsSetlists.id }).from(wsSetlists).where(services).orderBy(desc(wsSetlists.updatedAt)).limit(1)
   const [rows, items, defaultThemeId] = await Promise.all([
@@ -158,7 +155,18 @@ const loadCurrentSetlist = cache(async (): Promise<SetlistView | null> => {
     itemsWithSongs(latest()),
     loadDefaultThemeId(),
   ])
-  return rows[0] ? toView(rows[0], items, defaultThemeId) : null
+  const row = rows[0]
+  if (!row) return null
+  if (!row.serviceDate || row.serviceDate >= churchToday()) return toView(row, items, defaultThemeId)
+
+  const touchedSince = churchToday(row.updatedAt) > row.serviceDate
+  const exported = await db.select({ id: wsDecks.id }).from(wsDecks).where(eq(wsDecks.setlistId, row.id)).limit(1)
+  if (exported[0] && !touchedSince) return null
+
+  const date = nextSunday()
+  const title = row.title === (await defaultServiceTitle(row.serviceDate)) ? await defaultServiceTitle(date) : row.title
+  await db.update(wsSetlists).set({ serviceDate: date, title }).where(eq(wsSetlists.id, row.id))
+  return toView({ ...row, serviceDate: date, title }, items, defaultThemeId)
 })
 
 export async function getCurrentSetlist(): Promise<SetlistView | null> {
