@@ -8,8 +8,8 @@ import { getDb } from '@/db/client'
 import { orgModules, wsDecks, wsSongs, wsSetlists, wsSetlistItems, SETLIST_DEFAULTS, type SetlistKind, type SetlistSettings } from '@/db/schema'
 import { getCurrentContext } from '@/core/context'
 import { rowToSong } from './song-row'
-import { deckDisplay } from './setlist-settings'
-import { BUILTIN_THEMES, buildDeck, parseFlow, pruneFlow, type SlideDeck, type Song } from '@selah/slide-engine'
+import { setlistDeck } from './setlist-settings'
+import { BUILTIN_THEMES, parseFlow, pruneFlow, type DeckEdits, type SlideDeck, type Song } from '@selah/slide-engine'
 import type { ActionResult } from './actions'
 
 const MODULE_ID = 'worship-slides'
@@ -369,6 +369,28 @@ export async function updateSetlistSettings(setlistId: string, patch: z.input<ty
   } catch (e) { return failure(e) }
 }
 
+const editLines = z.array(z.string().trim().max(80, '一行太长了')).max(12, '一页最多 12 行').transform((lines) => lines.filter(Boolean))
+const slideKey = z.string().max(120)
+const editsSchema = z.object({
+  removed: z.array(z.object({ key: slideKey, was: z.string().max(2000) })).max(500).optional(),
+  rewritten: z.array(z.object({ key: slideKey, was: z.string().max(2000), lines: editLines })).max(500).optional(),
+  added: z.array(z.object({ id: z.string().regex(/^[\w-]{1,24}$/), after: slideKey, lines: editLines })).max(100).optional(),
+})
+
+/** 总览's changes to this setlist's slides. Replaces whatever was saved before. */
+export async function updateSetlistEdits(setlistId: string, edits: DeckEdits): Promise<ActionResult> {
+  try {
+    const data = editsSchema.parse(edits)
+    const { orgId } = await getCurrentContext()
+    const db = await getDb()
+    await db
+      .update(wsSetlists)
+      .set({ settings: sql`${wsSetlists.settings} || ${JSON.stringify({ edits: data })}::jsonb`, updatedAt: new Date() })
+      .where(and(eq(wsSetlists.id, setlistId), eq(wsSetlists.orgId, orgId)))
+    return { ok: true }
+  } catch (e) { return failure(e) }
+}
+
 /* --------------------------------------------------------------- export */
 
 /**
@@ -383,14 +405,7 @@ export async function saveSetlistDeck(setlistId: string): Promise<ActionResult<{
     if (!view) return { ok: false, message: '歌单不存在' }
     if (view.songs.length === 0) return { ok: false, message: '歌单里还没有歌' }
 
-    const s = view.settings
-    const deck = buildDeck({
-      songs: view.songs.map((x) => x.song),
-      flows: Object.fromEntries(view.songs.map((x) => [x.song.id, x.flow.join(' ')])),
-      themes: Object.fromEntries(view.songs.map((x) => [x.song.id, x.themeId])),
-      themeId: view.songs[0]!.themeId,
-      ...deckDisplay(s),
-    })
+    const deck = setlistDeck(view.songs, view.settings)!
 
     const db = await getDb()
     const deckId = `deck_${nanoid(10)}`

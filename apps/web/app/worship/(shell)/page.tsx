@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { buildDeck, getTheme, slideTheme, type SlideDeck } from '@selah/slide-engine'
+import { getTheme, slideTheme, type SlideDeck } from '@selah/slide-engine'
 import { listRecentDecks, listSongs } from '@/modules/worship-slides/actions'
 import { getCurrentSetlist, getDefaultThemeId, nextServiceDate } from '@/modules/worship-slides/setlist-actions'
 import { SlideView } from '@/modules/worship-slides/components/SlideView'
@@ -8,7 +8,7 @@ import { StartServiceButton } from '@/modules/worship-slides/components/StartSer
 import { AddToServiceButton } from '@/modules/worship-slides/components/AddToServiceButton'
 import { DeleteDeckButton } from '@/modules/worship-slides/components/DeleteDeckButton'
 import { typeName } from '@/modules/worship-slides/section-name'
-import { deckDisplay } from '@/modules/worship-slides/setlist-settings'
+import { setlistDeck } from '@/modules/worship-slides/setlist-settings'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: '工作台' }
@@ -59,14 +59,7 @@ export default async function Dashboard() {
   ])
 
   const has = !!setlist && setlist.songs.length > 0
-  const total = has
-    ? buildDeck({
-        songs: setlist.songs.map((x) => x.song),
-        flows: Object.fromEntries(setlist.songs.map((x) => [x.song.id, x.flow.join(' ')])),
-        themeId: setlist.songs[0]!.themeId,
-        ...deckDisplay(setlist.settings),
-      }).slides.length
-    : 0
+  const total = has ? setlistDeck(setlist.songs, setlist.settings)!.slides.length : 0
   const date = serviceDateLabel(setlist?.serviceDate ?? upcoming)
   const defaultTheme = getTheme(defaultThemeId)
 
