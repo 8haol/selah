@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { cx } from '@/core/ui'
 import {
-  layoutMeta, layoutSlide, layoutTitle, outlinePt, BADGE, CONTENT_X_PT, CONTENT_W_PT, META_LINE, SLIDE_W_PT, SLIDE_H_PT, type Slide, type Theme,
+  layoutMeta, layoutSlide, layoutTitle, outlinePt, BADGE, CONTENT_X_PT, CONTENT_W_PT, FOOTER, META_LINE, SLIDE_W_PT, SLIDE_H_PT, type Slide, type Theme,
 } from '@selah/slide-engine'
 
 const PX = 1920 / SLIDE_W_PT          // 2.6667 px per pt
@@ -103,6 +103,9 @@ export function SlideView({ slide, theme, static: isStatic = false, frameClassNa
           <>
             {slide.sectionLabel && (
               <div style={{ position: 'absolute', top: px(BADGE.topPt), left: px(BADGE.leftPt), height: px(BADGE.heightPt), display: 'flex', alignItems: 'center', fontFamily: FONT_PY, fontSize: px(theme.sizes.badge), letterSpacing: `${BADGE.tracking}em`, padding: `0 ${px(BADGE.padPt)}px`, border: `1.5px solid ${theme.colors.badge}55`, background: `${theme.colors.badge}1f`, borderRadius: 999, color: theme.colors.badge }}>{slide.sectionLabel}</div>
+            )}
+            {slide.songTitle && (
+              <div style={{ position: 'absolute', right: px(FOOTER.rightPt), bottom: px(FOOTER.bottomPt), height: px(FOOTER.heightPt), maxWidth: px(FOOTER.widthPt), display: 'flex', alignItems: 'center', fontSize: px(theme.sizes.badge), whiteSpace: 'nowrap', overflow: 'hidden', opacity: FOOTER.opacity, color: theme.colors.badge }}>{slide.songTitle}</div>
             )}
             {lay.rows.map((row, ri) => (
               <div key={ri} style={{ position: 'absolute', display: 'flex', left: px(CONTENT_X_PT + (CONTENT_W_PT - row.widthPt) / 2), top: px(row.topPt ?? lay.topPt + ri * (lay.rowHeightPt + lay.rowGapPt)), height: px(row.heightPt ?? lay.rowHeightPt) }}>

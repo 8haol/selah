@@ -90,6 +90,8 @@ export interface Slide {
   /** The title with per-character pinyin, so each syllable sits over its own character. */
   titleLine?: LyricLine
   meta?: string
+  /** The song's name, set small in the bottom-right corner of its lyrics slides. */
+  songTitle?: string
   lines: LyricLine[]
   /** Lyrics slides built since per-song sizing. Older decks lay out slide by slide. */
   fit?: SlideFit

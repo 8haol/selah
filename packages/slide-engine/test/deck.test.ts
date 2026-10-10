@@ -25,6 +25,10 @@ describe('buildDeck', () => {
     expect(deck.slides[2]!.sectionLabel).toBe('VERSE 1')
     expect(deck.slides[3]!.sectionId).toBe('C')
   })
+  it('names the song on its lyrics slides only', () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'V1 I C' }, themeId: 'night' })
+    expect(deck.slides.map((s) => s.songTitle)).toEqual([undefined, '耶和华是我的牧者', '耶和华是我的牧者', undefined, '耶和华是我的牧者'])
+  })
   it('paginates by wrapped rows, not by lines', () => {
     const deck = buildDeck({ songs: [song], flows: { s1: 'B' }, themeId: 'night' })
     const lyric = deck.slides.filter((s) => s.kind === 'lyrics')
