@@ -143,7 +143,7 @@ export function buildDeck(input: BuildDeckInput): SlideDeck {
       if (step.kind === 'blank') { slides.push({ kind: 'blank', themeId, songId: song.id, sectionLabel: step.label, flowIndex, lines: [] }); return }
       const section = song.sections.find((s) => s.id === step.sectionId)!
       for (const lines of paginateLines(section.lines, theme)) {
-        slides.push({ kind: 'lyrics', themeId, songId: song.id, sectionId: section.id, flowIndex, sectionLabel: sectionLabel(section.id), lines: lines.map(py) })
+        slides.push({ kind: 'lyrics', themeId, songId: song.id, sectionId: section.id, flowIndex, sectionLabel: sectionLabel(section.id), songTitle: song.title, lines: lines.map(py) })
       }
     })
     // one size, and one first-row height, for every lyrics slide of the song

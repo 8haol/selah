@@ -33,8 +33,9 @@ describe('renderPptx', () => {
 
     const xml2 = await zip.file('ppt/slides/slide2.xml')!.async('string')
     expect(xml2).not.toContain('<a:tbl>')
-    // one text box per character: 8 + 6 = 14 cells + 1 badge
-    expect((xml2.match(/<p:sp>/g) ?? []).length).toBe(15)
+    // one text box per character: 8 + 6 = 14 cells + 1 badge + 1 song name
+    expect((xml2.match(/<p:sp>/g) ?? []).length).toBe(16)
+    expect(xml2).toContain('>耶和华是我的牧者<')
     expect(xml2).toContain('>huá<')
     expect(xml2).toContain('>华<')
     expect(xml2).toContain('typeface="Microsoft YaHei"')
@@ -81,7 +82,8 @@ describe('renderPptx', () => {
     // One text box per character holds the pinyin run and the character run, and
     // the shadow lives on the box — so both rows are lifted off the background.
     // pptxgenjs silently drops `shadow` from a run's own options.
-    const cells = xml2.split('<p:sp>').slice(1).filter((c) => c.includes('typeface="Microsoft YaHei"'))
+    // the lyrics are bold; the song name in the corner is not, and carries no shadow
+    const cells = xml2.split('<p:sp>').slice(1).filter((c) => c.includes('typeface="Microsoft YaHei"') && c.includes(' b="1"'))
     expect(cells.length).toBe(14) // 8 + 6 characters
     for (const cell of cells) {
       expect(cell).toContain('<a:outerShdw')

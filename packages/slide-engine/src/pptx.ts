@@ -2,7 +2,7 @@ import PptxGenJS from 'pptxgenjs'
 import JSZip from 'jszip'
 import type { SlideDeck, Theme } from './types'
 import { getTheme, slideTheme } from './themes'
-import { layoutMeta, layoutSlide, layoutTitle, outlinePt, badgeWidthPt, rowHeightPt, BADGE, CONTENT_X_PT, CONTENT_W_PT, META_LINE, META_TOP_PT, SLIDE_W_PT } from './layout'
+import { layoutMeta, layoutSlide, layoutTitle, outlinePt, badgeWidthPt, rowHeightPt, BADGE, CONTENT_X_PT, CONTENT_W_PT, FOOTER, META_LINE, META_TOP_PT, SLIDE_H_PT, SLIDE_W_PT } from './layout'
 import { dedupeMedia, injectVideoTiming } from './pptx-post'
 
 export interface ThemeAssets {
@@ -168,6 +168,14 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
         charSpacing: BADGE.tracking * theme.sizes.badge, margin: 0,
         shape: pptx.ShapeType.roundRect, rectRadius: inch(BADGE.heightPt / 2),
         fill: { color: hex(theme.colors.badge), transparency: 88 }, line: { color: hex(theme.colors.badge), width: 1, transparency: 60 },
+      })
+    }
+
+    if (slide.songTitle) {
+      s.addText(slide.songTitle, {
+        x: inch(SLIDE_W_PT - FOOTER.rightPt - FOOTER.widthPt), y: inch(SLIDE_H_PT - FOOTER.bottomPt - FOOTER.heightPt), w: inch(FOOTER.widthPt), h: inch(FOOTER.heightPt),
+        fontFace: theme.fonts.zh, fontSize: theme.sizes.badge, color: hex(theme.colors.badge), transparency: Math.round((1 - FOOTER.opacity) * 100),
+        align: 'right', valign: 'middle', margin: 0, wrap: false, fit: 'none',
       })
     }
 

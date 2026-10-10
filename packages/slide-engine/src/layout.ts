@@ -252,6 +252,9 @@ export function songFit(pages: LyricLine[][], theme: Theme, anchor: TextAnchor =
 /** The section badge: a small pill tucked into the top-left corner. */
 export const BADGE = { topPt: 18, leftPt: 24, heightPt: 19, padPt: 7, tracking: 0.2 } as const
 
+/** The song's name in the bottom-right corner: the badge's mirror image, as small and as far from the edges. */
+export const FOOTER = { rightPt: BADGE.leftPt, bottomPt: BADGE.topPt, heightPt: BADGE.heightPt, widthPt: SLIDE_W_PT / 2, opacity: 0.7 } as const
+
 export function badgeWidthPt(label: string, sizePt: number): number {
   return measureLatinPt(label, sizePt) + [...label].length * BADGE.tracking * sizePt + 2 * BADGE.padPt
 }
