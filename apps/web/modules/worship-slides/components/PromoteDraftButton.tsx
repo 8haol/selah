@@ -40,7 +40,7 @@ export function PromoteDraftButton({ id, className }: { id: string; className?: 
           className,
         )}
       >
-        {pending ? '设置中…' : armed ? '确认设为本周？' : '设为本周主日'}
+        {pending ? '设置中…' : armed ? '确认？' : '设为本周'}
       </button>
       {error && (
         <span role="alert" className="absolute left-0 top-full z-30 mt-2 w-[260px] rounded-lg bg-accent-soft px-3 py-2 text-[12.5px] leading-5 text-accent-deep shadow-sm">
