@@ -113,7 +113,7 @@ export function MobileNav({ service, drafts, newDraft }: SidebarProps) {
               href={n.href}
               aria-current={on ? 'page' : undefined}
               className={cx(
-                'whitespace-nowrap rounded-[10px] px-3 py-2 text-sm transition-colors',
+                'flex-none whitespace-nowrap rounded-[10px] px-3 py-2 text-sm transition-colors',
                 on ? 'bg-line font-semibold text-ink' : 'text-ink-3',
               )}
             >
@@ -121,12 +121,26 @@ export function MobileNav({ service, drafts, newDraft }: SidebarProps) {
             </Link>
           )
         })}
-        {drafts.map((d) => (
-          <Link key={d.href} href={d.href} className="max-w-[10rem] truncate whitespace-nowrap rounded-[10px] px-3 py-2 text-sm text-ink-3">
-            {d.label}
-          </Link>
-        ))}
-        {newDraft}
+        {/* the row scrolls sideways; nothing in it may shrink, or a long draft name squeezes to a character */}
+        {drafts.length > 0 && <span className="flex-none self-center pl-2 pr-1 text-xs text-ink-5">最近制作</span>}
+        {drafts.map((d) => {
+          const on = pathname === d.href
+          return (
+            <Link
+              key={d.href}
+              href={d.href}
+              aria-current={on ? 'page' : undefined}
+              className={cx(
+                'flex flex-none items-baseline gap-1.5 whitespace-nowrap rounded-[10px] bg-surface-3 px-3 py-2 text-sm',
+                on ? 'font-semibold text-ink' : 'text-ink-3',
+              )}
+            >
+              <span className="max-w-[10rem] truncate">{d.label}</span>
+              <span className="text-xs text-ink-5">{d.count}</span>
+            </Link>
+          )
+        })}
+        <span className="flex-none">{newDraft}</span>
       </nav>
     </div>
   )
