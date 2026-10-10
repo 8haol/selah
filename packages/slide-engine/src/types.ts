@@ -95,6 +95,22 @@ export interface Slide {
   lines: LyricLine[]
   /** Lyrics slides built since per-song sizing. Older decks lay out slide by slide. */
   fit?: SlideFit
+  /** Set by `applyDeckEdits`: the slide's place in the deck, see `slideKeys`. */
+  key?: string
+  /** Set by `applyDeckEdits` on a slide the setlist changed by hand. */
+  edit?: 'rewritten' | 'added' | 'removed'
+}
+
+/**
+ * Changes made to one setlist's slides on the overview before export. They
+ * belong to the setlist, not the song: the library keeps the lyrics as they are.
+ * `was` is the text the slide showed when it was changed, one line per row.
+ */
+export interface DeckEdits {
+  removed?: { key: string; was: string }[]
+  rewritten?: { key: string; was: string; lines: string[] }[]
+  /** Free-text slides, each placed right after the slide `after` names; '' puts it first. */
+  added?: { id: string; after: string; lines: string[] }[]
 }
 
 export interface SlideDeck {

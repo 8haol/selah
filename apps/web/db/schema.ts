@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, jsonb, integer, boolean, date, primaryKey, index } from 'drizzle-orm/pg-core'
-import type { LineSpacing, OutlineWeight, SongSection, SlideDeck, TextAnchor } from '@selah/slide-engine'
+import type { DeckEdits, LineSpacing, OutlineWeight, SongSection, SlideDeck, TextAnchor } from '@selah/slide-engine'
 
 export const organizations = pgTable('organizations', {
   id: text('id').primaryKey(),
@@ -53,6 +53,8 @@ export interface SetlistSettings {
   outline: OutlineWeight
   /** 文字位置: 固定首行 or 每页居中 */
   anchor: TextAnchor
+  /** Slides removed, rewritten or added on the 总览 before export. This setlist only. */
+  edits?: DeckEdits
 }
 
 export const SETLIST_DEFAULTS: SetlistSettings = {
