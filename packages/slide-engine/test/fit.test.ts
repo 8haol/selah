@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import JSZip from 'jszip'
 import { buildDeck } from '../src/deck.js'
-import { layoutMeta, layoutSlide, SLIDE_H_PT, CONTENT_TOP_PT } from '../src/layout.js'
+import { layoutMeta, layoutSlide, SLIDE_H_PT, CONTENT_TOP_PT, CONTENT_BOTTOM_PT, PY_LINE, ZH_LINE } from '../src/layout.js'
 import { slideTheme, tunedTheme, getTheme } from '../src/themes.js'
 import { renderPptx } from '../src/pptx.js'
 import type { Slide, SlideDeck, Song } from '../src/types.js'
@@ -50,6 +50,26 @@ describe('where the first row sits', () => {
     expect(chorus.topPt).toBeGreaterThanOrEqual(CONTENT_TOP_PT)
   })
 
+  it('pins to the usual page, and the odd taller page centres itself', () => {
+    // two lines a page, with one three-line verse: the two-row pages are the
+    // song, so they sit centred; the three-row page could not hang from their
+    // top without running off the bottom, so it centres on its own
+    const uneven: Song = {
+      ...song, defaultFlow: 'V C C',
+      sections: [
+        { id: 'V', type: 'verse', lines: [L('有对你的明白'), L('却没有爱'), L('你说来我胸怀')] },
+        { id: 'C', type: 'chorus', lines: [L('我心我灵安静在你怀里'), L('得力因信靠你')] },
+      ],
+    }
+    const deck = buildDeck({ songs: [uneven], flows: {}, themeId: 'night', linesPerSlide: 2 })
+    const [verse, chorus] = lyricSlides(deck).map((s) => lay(deck, s))
+    expect(verse!.rows).toHaveLength(3)
+    expect(chorus!.rows).toHaveLength(2)
+    expect(chorus!.topPt + chorus!.blockHeightPt / 2).toBeCloseTo(SLIDE_H_PT / 2, 0)
+    expect(verse!.topPt + verse!.blockHeightPt / 2).toBeCloseTo(SLIDE_H_PT / 2, 0)
+    expect(verse!.topPt + verse!.blockHeightPt).toBeLessThanOrEqual(CONTENT_BOTTOM_PT + 1e-6)
+  })
+
   it('with 每页居中, centres every slide on its own', () => {
     const deck = buildDeck({ songs: [song], flows: {}, themeId: 'night', anchor: 'center' })
     const ending = lay(deck, lyricSlides(deck)[1]!)
@@ -67,6 +87,36 @@ describe('行间距', () => {
     }
     expect(gap('tight')).toBeLessThan(gap('normal'))
     expect(gap('normal')).toBeLessThan(gap('loose'))
+  })
+
+  it('keeps 宽松 on a two-line song whose odd verse takes three rows', () => {
+    // the lone third line joins its neighbours past 每页最多行数; that used to
+    // read as "nothing fits", close the gap to 0 and hand that to the whole song
+    const uneven: Song = {
+      ...song, defaultFlow: 'V C',
+      sections: [
+        { id: 'V', type: 'verse', lines: [L('有对你的明白'), L('却没有爱'), L('你说来我胸怀')] },
+        { id: 'C', type: 'chorus', lines: [L('我心我灵安静在你怀里'), L('得力因信靠你')] },
+      ],
+    }
+    const gap = (lineSpacing: 'tight' | 'normal' | 'loose') => {
+      const deck = buildDeck({ songs: [uneven], flows: {}, themeId: 'night', linesPerSlide: 2, lineSpacing })
+      return lyricSlides(deck).map((s) => lay(deck, s).rowGapPt)
+    }
+    expect(gap('loose')[0]).toBeGreaterThan(gap('normal')[0]!)
+    expect(gap('normal')[0]).toBeGreaterThan(gap('tight')[0]!)
+    expect(gap('loose')[1]).toBeCloseTo(gap('loose')[0]!, 5)
+  })
+
+  it('on a four-row slide, 宽松 shrinks the text a little rather than lose its gap', () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'C' }, themeId: 'night', lineSpacing: 'loose' })
+    const normal = buildDeck({ songs: [song], flows: { s1: 'C' }, themeId: 'night' })
+    const loose = lay(deck, lyricSlides(deck)[0]!)
+    const std = lay(normal, lyricSlides(normal)[0]!)
+    expect(loose.rows).toHaveLength(4)
+    expect(loose.rowGapPt).toBeGreaterThan(std.rowGapPt)
+    expect(loose.zhPt).toBeLessThan(std.zhPt)
+    expect(loose.zhPt).toBeGreaterThanOrEqual(45 * 0.85 - 1e-9)
   })
 
   it('on a slide too full for 宽松, keeps as much of the gap as fits instead of closing it', () => {
@@ -120,6 +170,19 @@ describe('字体描边', () => {
     const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'nodebuffer' })) as Buffer)
     const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
     expect(xml.split('<p:sp>').filter((sp) => sp.includes('>直<'))).toHaveLength(1)
+  })
+})
+
+describe('the exported row', () => {
+  it('sets each line of a character box to its exact height, so PowerPoint cannot overflow it', async () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'E' }, themeId: 'night', titleSlides: false })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'nodebuffer' })) as Buffer)
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
+    const box = xml.split('<p:sp>').find((sp) => sp.includes('>直<'))!
+    const l = lay(deck, lyricSlides(deck)[0]!)
+    const spacings = [...box.matchAll(/<a:spcPts val="(\d+)"\/>/g)].map((m) => Number(m[1]) / 100)
+    expect(spacings).toEqual([Math.round(l.pyPt * PY_LINE * 100) / 100, Math.round(l.zhPt * ZH_LINE * 100) / 100])
   })
 })
 

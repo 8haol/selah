@@ -48,7 +48,7 @@ export interface Theme {
    * theme that never sets it lays out exactly as it did before.
    */
   textScale?: number
-  /** Gap between rows at scale 1, in pt. Undefined reads as 16 (标准). */
+  /** Gap between rows at scale 1, in pt. Undefined reads as `DEFAULT_ROW_GAP` (标准). */
   rowGap?: number
   /** 字体描边: stroke colour and width as a fraction of the character size. */
   outline?: { color: string; ratio: number } | null

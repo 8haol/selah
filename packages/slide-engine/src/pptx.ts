@@ -2,7 +2,7 @@ import PptxGenJS from 'pptxgenjs'
 import JSZip from 'jszip'
 import type { SlideDeck, Theme } from './types'
 import { getTheme, slideTheme } from './themes'
-import { layoutMeta, layoutSlide, layoutTitle, outlinePt, badgeWidthPt, rowHeightPt, BADGE, CONTENT_X_PT, CONTENT_W_PT, FOOTER, META_LINE, META_TOP_PT, SLIDE_H_PT, SLIDE_W_PT } from './layout'
+import { layoutMeta, layoutSlide, layoutTitle, outlinePt, badgeWidthPt, rowHeightPt, BADGE, PY_LINE, ZH_LINE, CONTENT_X_PT, CONTENT_W_PT, FOOTER, META_LINE, META_TOP_PT, SLIDE_H_PT, SLIDE_W_PT } from './layout'
 import { dedupeMedia, injectVideoTiming } from './pptx-post'
 
 export interface ThemeAssets {
@@ -99,14 +99,18 @@ export async function renderPptx(deck: SlideDeck, assets: RenderAssets): Promise
      * pinyin out. Instead a copy in the stroke colour carries the outline
      * underneath and the lyric on top carries none — only the outer half of
      * the stroke shows, as in the preview's paint-order.
+     *
+     * Each run sets its line's height exactly (`ZH_LINE` / `PY_LINE`): left to
+     * PowerPoint, a CJK line comes out taller than the box allows for, the
+     * text overflows upward and the pinyin lands on the row above.
      */
     type CellText = { zh: string; py: string; zhPt: number; pyPt: number; zhFont: string; zhColor: string }
     type Box = { x: number; y: number; w: number; h: number }
     const addCell = (c: CellText, box: Box) => {
       const runs = (color: { zh: string; py: string }, outline?: (pt: number) => { color: string; size: number }) => {
-        const zhRun = { text: c.zh, options: { fontFace: c.zhFont, fontSize: c.zhPt, bold: true, color: color.zh, ...(outline ? { outline: outline(c.zhPt) } : {}) } }
+        const zhRun = { text: c.zh, options: { fontFace: c.zhFont, fontSize: c.zhPt, bold: true, color: color.zh, lineSpacing: c.zhPt * ZH_LINE, ...(outline ? { outline: outline(c.zhPt) } : {}) } }
         return c.py
-          ? [{ text: c.py, options: { fontFace: theme.fonts.pinyin, fontSize: c.pyPt, color: color.py, breakLine: true, ...(outline ? { outline: outline(c.pyPt) } : {}) } }, zhRun]
+          ? [{ text: c.py, options: { fontFace: theme.fonts.pinyin, fontSize: c.pyPt, color: color.py, lineSpacing: c.pyPt * PY_LINE, breakLine: true, ...(outline ? { outline: outline(c.pyPt) } : {}) } }, zhRun]
           : [zhRun]
       }
       const place = { x: inch(box.x), y: inch(box.y), w: inch(box.w), h: inch(box.h), margin: 0, align: 'center' as const, valign: 'bottom' as const, fit: 'none' as const, wrap: false }

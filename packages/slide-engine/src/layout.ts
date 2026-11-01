@@ -12,11 +12,28 @@ export const CONTENT_BOTTOM_PT = SLIDE_H_PT - CONTENT_TOP_PT
 export const MAX_SCALE = 64 / 45
 /** Floor for the emergency shrink: below this, projected lyrics stop being readable. */
 export const MIN_SCALE = 0.6
+/**
+ * How far below the theme's size a full slide may shrink to keep its row gap.
+ * A slide too full even for that closes the gap instead, so 宽松 costs a
+ * little size on a full slide rather than quietly turning into 紧凑.
+ */
+export const GAP_FLOOR = 0.85
 const SCALE_STEP = 0.02
 /** Pinyin at half the character's size: an annotation, not a second lyric line. */
 export const PINYIN_RATIO = 0.5
 const BASE_ZH_PT = 45
-const DEFAULT_ROW_GAP = 16
+export const DEFAULT_ROW_GAP = 10
+/**
+ * Line heights as multiples of the size, set as exact spacing in the export
+ * and as the preview's line-height. PowerPoint sets a CJK line about 1.3
+ * sizes tall on its own, so a box sized for a tighter line overflows upward
+ * and the pinyin lands on the row above. A character's ink reaches about
+ * 0.12 sizes below the baseline and 0.88 above; with the font's descent kept
+ * under the baseline, 1.2 covers Microsoft YaHei, PingFang and Noto alike.
+ * Pinyin only needs room for a tone mark over a tall letter.
+ */
+export const ZH_LINE = 1.2
+export const PY_LINE = 1.1
 /** Lyrics centre on the middle of the picture, not of the space under the badge. */
 const MIDDLE_PT = SLIDE_H_PT / 2
 
@@ -153,12 +170,12 @@ export function wrapLine(line: LyricLine, zhPt: number, pyPt: number, maxWidthPt
 }
 
 export function rowHeightPt(zhPt: number, pyPt: number): number {
-  return zhPt * 1.02 + pyPt * 0.98
+  return zhPt * ZH_LINE + pyPt * PY_LINE
 }
 
 /** Height of a row with no pinyin above it. */
 export function bareRowHeightPt(zhPt: number): number {
-  return zhPt * 1.02
+  return zhPt * ZH_LINE
 }
 
 const hasChinese = (row: Row) => row.cells.some((cell) => [...cell.zh].some(isChinese))
@@ -172,7 +189,9 @@ function attempt(lines: LyricLine[], scale: number, gap: number, fixedTop?: numb
   const rowGapPt = gap * scale
   const wrapped = lines.flatMap((l, line) => wrapLine(l, zhPt, pyPt).map((row) => ({ ...row, line, heightPt: hasChinese(row) ? rh : bareRowHeightPt(zhPt) })))
   const blockHeightPt = wrapped.reduce((h, row) => h + row.heightPt, 0) + Math.max(0, wrapped.length - 1) * rowGapPt
-  const topPt = fixedTop ?? centredTop(blockHeightPt)
+  // A pinned top is the song's usual page's; a page too tall to hang from it
+  // (the odd three-row page in a two-line song) centres itself instead.
+  const topPt = fixedTop !== undefined && fixedTop + blockHeightPt <= CONTENT_BOTTOM_PT ? fixedTop : centredTop(blockHeightPt)
   let y = topPt
   const rows = wrapped.map((row) => {
     const placed = { ...row, topPt: y }
@@ -206,24 +225,35 @@ function freeLayout(lines: LyricLine[], theme: Theme): SlideLayout {
   const t = theme.textScale ?? 1
   const ceil = MAX_SCALE * t
   const floor = t
-  const maxRows = Math.min(theme.maxLinesPerSlide, lines.reduce((n, line) => n + countRows(line, theme), 0))
+  // The rows the page takes at the floor size are its budget: pagination
+  // already decided them, and a larger size must not wrap it past them. That
+  // can exceed 每页最多行数 — a two-line song keeps a lone third line with its
+  // neighbours — and the budget follows the page, not the setting.
+  const maxRows = lines.reduce((n, line) => n + countRows(line, theme), 0)
+  const fits = (lay: SlideLayout) => lay.rows.length <= maxRows && lay.blockHeightPt <= contentH
   for (let scale = ceil; scale >= floor - 1e-9; scale -= SCALE_STEP) {
     const lay = attempt(lines, Math.max(floor, scale), gap)
-    if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
+    if (fits(lay)) return lay
   }
-  // At the floor, close the gap only as far as it takes: 宽松 on a full slide
-  // comes out as loose as the slide allows, not squeezed shut.
+  // A full slide gives up a little size before any of its gap, so 宽松 stays
+  // loose on a four-row slide instead of coming out like 标准.
+  const gapFloor = GAP_FLOOR * t
+  for (let scale = floor - SCALE_STEP; scale >= gapFloor - 1e-9; scale -= SCALE_STEP) {
+    const lay = attempt(lines, Math.max(gapFloor, scale), gap)
+    if (fits(lay)) return lay
+  }
+  // Then close the gap only as far as it takes.
   for (let g = gap - 1; g >= 0; g -= 1) {
-    const lay = attempt(lines, floor, g)
-    if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
+    const lay = attempt(lines, gapFloor, g)
+    if (fits(lay)) return lay
   }
-  const tight = attempt(lines, floor, 0)
+  const tight = attempt(lines, gapFloor, 0)
   if (tight.blockHeightPt <= contentH) return tight
   // A single line wrapping to more rows than the slide allows: shrink past the
-  // 45pt floor rather than let the block run off the bottom of the slide.
-  const steps = Math.round((floor - MIN_SCALE) / SCALE_STEP)
+  // floor rather than let the block run off the bottom of the slide.
+  const steps = Math.round((gapFloor - MIN_SCALE) / SCALE_STEP)
   for (let i = 1; i <= steps; i += 1) {
-    const scale = Math.max(MIN_SCALE, Number((floor - i * SCALE_STEP).toFixed(4)))
+    const scale = Math.max(MIN_SCALE, Number((gapFloor - i * SCALE_STEP).toFixed(4)))
     const lay = attempt(lines, scale, 0)
     if (lay.blockHeightPt <= contentH || scale === MIN_SCALE) return lay
   }
@@ -236,8 +266,10 @@ function freeLayout(lines: LyricLine[], theme: Theme): SlideLayout {
 /**
  * One size for the whole song: the largest every one of its slides can take,
  * which is the fullest slide's. With `top`, the first row sits where it does on
- * that fullest slide, centred on the picture, so turning the page never moves
- * the text up or down.
+ * the song's usual slide — the height most of its pages come out at, the
+ * taller one on a tie — centred on the picture, so turning the page never
+ * moves the text up or down. The odd page too tall for that top (a two-line
+ * song's one three-row page) centres itself; see `attempt`.
  */
 export function songFit(pages: LyricLine[][], theme: Theme, anchor: TextAnchor = 'top'): SlideFit | undefined {
   const free = pages.map((lines) => freeLayout(lines, theme))
@@ -245,8 +277,11 @@ export function songFit(pages: LyricLine[][], theme: Theme, anchor: TextAnchor =
   const scale = Math.min(...free.map((l) => l.scale))
   const rowGap = Math.min(...free.map((l) => l.rowGapPt / l.scale))
   if (anchor === 'center') return { scale, rowGap }
-  const tallest = Math.max(...pages.map((lines) => attempt(lines, scale, rowGap).blockHeightPt))
-  return { scale, rowGap, topPt: centredTop(tallest) }
+  const heights = pages.map((lines) => Math.round(attempt(lines, scale, rowGap).blockHeightPt * 100) / 100)
+  const count = new Map<number, number>()
+  for (const h of heights) count.set(h, (count.get(h) ?? 0) + 1)
+  const usual = [...count.entries()].reduce((best, next) => (next[1] > best[1] || (next[1] === best[1] && next[0] > best[0]) ? next : best))[0]
+  return { scale, rowGap, topPt: centredTop(usual) }
 }
 
 /** The section badge: a small pill tucked into the top-left corner. */
