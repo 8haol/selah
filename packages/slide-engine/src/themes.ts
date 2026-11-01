@@ -1,5 +1,6 @@
 import type { LineSpacing, OutlineWeight, Slide, SlideDeck, Theme } from './types'
 import { luminance } from './contrast'
+import { DEFAULT_ROW_GAP } from './layout'
 
 const base = {
   // Fonts every Windows install ships, whatever its display language. SimHei and
@@ -149,7 +150,9 @@ export interface ThemeTuning {
   outline?: OutlineWeight
 }
 
-const ROW_GAPS: Record<LineSpacing, number> = { tight: 8, normal: 16, loose: 28 }
+// On top of the air the line heights already carry (`ZH_LINE`): 紧凑 lets the
+// rows sit as close as they can without touching.
+const ROW_GAPS: Record<LineSpacing, number> = { tight: 0, normal: DEFAULT_ROW_GAP, loose: 24 }
 const OUTLINE_RATIOS: Record<Exclude<OutlineWeight, 'none'>, number> = { thin: 0.035, thick: 0.07 }
 
 export function tunedTheme(base: Theme, opts: ThemeTuning = {}): Theme {

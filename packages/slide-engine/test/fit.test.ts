@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import JSZip from 'jszip'
 import { buildDeck } from '../src/deck.js'
-import { layoutMeta, layoutSlide, SLIDE_H_PT, CONTENT_TOP_PT } from '../src/layout.js'
+import { layoutMeta, layoutSlide, SLIDE_H_PT, CONTENT_TOP_PT, PY_LINE, ZH_LINE } from '../src/layout.js'
 import { slideTheme, tunedTheme, getTheme } from '../src/themes.js'
 import { renderPptx } from '../src/pptx.js'
 import type { Slide, SlideDeck, Song } from '../src/types.js'
@@ -120,6 +120,19 @@ describe('字体描边', () => {
     const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'nodebuffer' })) as Buffer)
     const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
     expect(xml.split('<p:sp>').filter((sp) => sp.includes('>直<'))).toHaveLength(1)
+  })
+})
+
+describe('the exported row', () => {
+  it('sets each line of a character box to its exact height, so PowerPoint cannot overflow it', async () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'E' }, themeId: 'night', titleSlides: false })
+    const pptx = await renderPptx(deck, { backgroundDataUrl: `data:image/jpeg;base64,${JPEG_B64}` })
+    const zip = await JSZip.loadAsync((await pptx.write({ outputType: 'nodebuffer' })) as Buffer)
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
+    const box = xml.split('<p:sp>').find((sp) => sp.includes('>直<'))!
+    const l = lay(deck, lyricSlides(deck)[0]!)
+    const spacings = [...box.matchAll(/<a:spcPts val="(\d+)"\/>/g)].map((m) => Number(m[1]) / 100)
+    expect(spacings).toEqual([Math.round(l.pyPt * PY_LINE * 100) / 100, Math.round(l.zhPt * ZH_LINE * 100) / 100])
   })
 })
 

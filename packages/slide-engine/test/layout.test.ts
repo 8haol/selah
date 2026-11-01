@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, lineNeedsBreak, CONTENT_W_PT, MAX_SCALE, MIN_SCALE, rowHeightPt, bareRowHeightPt } from '../src/layout.js'
+import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, lineNeedsBreak, CONTENT_W_PT, MAX_SCALE, MIN_SCALE, PY_LINE, ZH_LINE, rowHeightPt, bareRowHeightPt } from '../src/layout.js'
 import { getTheme } from '../src/themes.js'
 import { annotateLine } from '../src/pinyin.js'
 import type { LyricLine } from '../src/types.js'
@@ -85,7 +85,13 @@ describe('layoutSlide', () => {
     expect(lay.rows.length).toBe(4)
     expect(lay.blockHeightPt).toBeLessThanOrEqual(393 - 64 + 0.001)
   })
-  it('rowHeightPt is zh*1.02 + py*0.98', () => { expect(rowHeightPt(45, 35)).toBeCloseTo(45 * 1.02 + 35 * 0.98, 5) })
+  it('rowHeightPt is the two exact line heights the export sets', () => { expect(rowHeightPt(45, 35)).toBeCloseTo(45 * ZH_LINE + 35 * PY_LINE, 5) })
+  it('sizes a line so a character never reaches into the pinyin above it', () => {
+    // a CJK glyph's ink runs about 0.88 sizes above the baseline; a tone mark
+    // over an x-height vowel reaches about 0.8 of the pinyin's size above its
+    expect(ZH_LINE).toBeGreaterThanOrEqual(0.88 + 0.3)  // PingFang's descent is the deepest of the fonts in play
+    expect(PY_LINE).toBeGreaterThanOrEqual(0.8 + 0.21)  // Arial's descent
+  })
   it('countRows reports wrapped rows at scale 1', () => {
     expect(countRows(L('我必不致缺乏'), night)).toBe(1)
     expect(countRows(L('他使我躺卧在青草地上领我在可安歇的水边'), night)).toBeGreaterThanOrEqual(2)

@@ -16,7 +16,18 @@ const SCALE_STEP = 0.02
 /** Pinyin at half the character's size: an annotation, not a second lyric line. */
 export const PINYIN_RATIO = 0.5
 const BASE_ZH_PT = 45
-const DEFAULT_ROW_GAP = 16
+export const DEFAULT_ROW_GAP = 10
+/**
+ * Line heights as multiples of the size, set as exact spacing in the export
+ * and as the preview's line-height. PowerPoint sets a CJK line about 1.3
+ * sizes tall on its own, so a box sized for a tighter line overflows upward
+ * and the pinyin lands on the row above. A character's ink reaches about
+ * 0.12 sizes below the baseline and 0.88 above; with the font's descent kept
+ * under the baseline, 1.2 covers Microsoft YaHei, PingFang and Noto alike.
+ * Pinyin only needs room for a tone mark over a tall letter.
+ */
+export const ZH_LINE = 1.2
+export const PY_LINE = 1.1
 /** Lyrics centre on the middle of the picture, not of the space under the badge. */
 const MIDDLE_PT = SLIDE_H_PT / 2
 
@@ -153,12 +164,12 @@ export function wrapLine(line: LyricLine, zhPt: number, pyPt: number, maxWidthPt
 }
 
 export function rowHeightPt(zhPt: number, pyPt: number): number {
-  return zhPt * 1.02 + pyPt * 0.98
+  return zhPt * ZH_LINE + pyPt * PY_LINE
 }
 
 /** Height of a row with no pinyin above it. */
 export function bareRowHeightPt(zhPt: number): number {
-  return zhPt * 1.02
+  return zhPt * ZH_LINE
 }
 
 const hasChinese = (row: Row) => row.cells.some((cell) => [...cell.zh].some(isChinese))
