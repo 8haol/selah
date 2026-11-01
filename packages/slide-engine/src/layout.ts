@@ -189,7 +189,9 @@ function attempt(lines: LyricLine[], scale: number, gap: number, fixedTop?: numb
   const rowGapPt = gap * scale
   const wrapped = lines.flatMap((l, line) => wrapLine(l, zhPt, pyPt).map((row) => ({ ...row, line, heightPt: hasChinese(row) ? rh : bareRowHeightPt(zhPt) })))
   const blockHeightPt = wrapped.reduce((h, row) => h + row.heightPt, 0) + Math.max(0, wrapped.length - 1) * rowGapPt
-  const topPt = fixedTop ?? centredTop(blockHeightPt)
+  // A pinned top is the song's usual page's; a page too tall to hang from it
+  // (the odd three-row page in a two-line song) centres itself instead.
+  const topPt = fixedTop !== undefined && fixedTop + blockHeightPt <= CONTENT_BOTTOM_PT ? fixedTop : centredTop(blockHeightPt)
   let y = topPt
   const rows = wrapped.map((row) => {
     const placed = { ...row, topPt: y }
@@ -264,8 +266,10 @@ function freeLayout(lines: LyricLine[], theme: Theme): SlideLayout {
 /**
  * One size for the whole song: the largest every one of its slides can take,
  * which is the fullest slide's. With `top`, the first row sits where it does on
- * that fullest slide, centred on the picture, so turning the page never moves
- * the text up or down.
+ * the song's usual slide — the height most of its pages come out at, the
+ * taller one on a tie — centred on the picture, so turning the page never
+ * moves the text up or down. The odd page too tall for that top (a two-line
+ * song's one three-row page) centres itself; see `attempt`.
  */
 export function songFit(pages: LyricLine[][], theme: Theme, anchor: TextAnchor = 'top'): SlideFit | undefined {
   const free = pages.map((lines) => freeLayout(lines, theme))
@@ -273,8 +277,11 @@ export function songFit(pages: LyricLine[][], theme: Theme, anchor: TextAnchor =
   const scale = Math.min(...free.map((l) => l.scale))
   const rowGap = Math.min(...free.map((l) => l.rowGapPt / l.scale))
   if (anchor === 'center') return { scale, rowGap }
-  const tallest = Math.max(...pages.map((lines) => attempt(lines, scale, rowGap).blockHeightPt))
-  return { scale, rowGap, topPt: centredTop(tallest) }
+  const heights = pages.map((lines) => Math.round(attempt(lines, scale, rowGap).blockHeightPt * 100) / 100)
+  const count = new Map<number, number>()
+  for (const h of heights) count.set(h, (count.get(h) ?? 0) + 1)
+  const usual = [...count.entries()].reduce((best, next) => (next[1] > best[1] || (next[1] === best[1] && next[0] > best[0]) ? next : best))[0]
+  return { scale, rowGap, topPt: centredTop(usual) }
 }
 
 /** The section badge: a small pill tucked into the top-left corner. */
