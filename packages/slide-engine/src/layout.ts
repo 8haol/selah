@@ -12,6 +12,12 @@ export const CONTENT_BOTTOM_PT = SLIDE_H_PT - CONTENT_TOP_PT
 export const MAX_SCALE = 64 / 45
 /** Floor for the emergency shrink: below this, projected lyrics stop being readable. */
 export const MIN_SCALE = 0.6
+/**
+ * How far below the theme's size a full slide may shrink to keep its row gap.
+ * A slide too full even for that closes the gap instead, so 宽松 costs a
+ * little size on a full slide rather than quietly turning into 紧凑.
+ */
+export const GAP_FLOOR = 0.85
 const SCALE_STEP = 0.02
 /** Pinyin at half the character's size: an annotation, not a second lyric line. */
 export const PINYIN_RATIO = 0.5
@@ -217,24 +223,35 @@ function freeLayout(lines: LyricLine[], theme: Theme): SlideLayout {
   const t = theme.textScale ?? 1
   const ceil = MAX_SCALE * t
   const floor = t
-  const maxRows = Math.min(theme.maxLinesPerSlide, lines.reduce((n, line) => n + countRows(line, theme), 0))
+  // The rows the page takes at the floor size are its budget: pagination
+  // already decided them, and a larger size must not wrap it past them. That
+  // can exceed 每页最多行数 — a two-line song keeps a lone third line with its
+  // neighbours — and the budget follows the page, not the setting.
+  const maxRows = lines.reduce((n, line) => n + countRows(line, theme), 0)
+  const fits = (lay: SlideLayout) => lay.rows.length <= maxRows && lay.blockHeightPt <= contentH
   for (let scale = ceil; scale >= floor - 1e-9; scale -= SCALE_STEP) {
     const lay = attempt(lines, Math.max(floor, scale), gap)
-    if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
+    if (fits(lay)) return lay
   }
-  // At the floor, close the gap only as far as it takes: 宽松 on a full slide
-  // comes out as loose as the slide allows, not squeezed shut.
+  // A full slide gives up a little size before any of its gap, so 宽松 stays
+  // loose on a four-row slide instead of coming out like 标准.
+  const gapFloor = GAP_FLOOR * t
+  for (let scale = floor - SCALE_STEP; scale >= gapFloor - 1e-9; scale -= SCALE_STEP) {
+    const lay = attempt(lines, Math.max(gapFloor, scale), gap)
+    if (fits(lay)) return lay
+  }
+  // Then close the gap only as far as it takes.
   for (let g = gap - 1; g >= 0; g -= 1) {
-    const lay = attempt(lines, floor, g)
-    if (lay.rows.length <= maxRows && lay.blockHeightPt <= contentH) return lay
+    const lay = attempt(lines, gapFloor, g)
+    if (fits(lay)) return lay
   }
-  const tight = attempt(lines, floor, 0)
+  const tight = attempt(lines, gapFloor, 0)
   if (tight.blockHeightPt <= contentH) return tight
   // A single line wrapping to more rows than the slide allows: shrink past the
-  // 45pt floor rather than let the block run off the bottom of the slide.
-  const steps = Math.round((floor - MIN_SCALE) / SCALE_STEP)
+  // floor rather than let the block run off the bottom of the slide.
+  const steps = Math.round((gapFloor - MIN_SCALE) / SCALE_STEP)
   for (let i = 1; i <= steps; i += 1) {
-    const scale = Math.max(MIN_SCALE, Number((floor - i * SCALE_STEP).toFixed(4)))
+    const scale = Math.max(MIN_SCALE, Number((gapFloor - i * SCALE_STEP).toFixed(4)))
     const lay = attempt(lines, scale, 0)
     if (lay.blockHeightPt <= contentH || scale === MIN_SCALE) return lay
   }

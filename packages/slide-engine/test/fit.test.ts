@@ -69,6 +69,36 @@ describe('行间距', () => {
     expect(gap('normal')).toBeLessThan(gap('loose'))
   })
 
+  it('keeps 宽松 on a two-line song whose odd verse takes three rows', () => {
+    // the lone third line joins its neighbours past 每页最多行数; that used to
+    // read as "nothing fits", close the gap to 0 and hand that to the whole song
+    const uneven: Song = {
+      ...song, defaultFlow: 'V C',
+      sections: [
+        { id: 'V', type: 'verse', lines: [L('有对你的明白'), L('却没有爱'), L('你说来我胸怀')] },
+        { id: 'C', type: 'chorus', lines: [L('我心我灵安静在你怀里'), L('得力因信靠你')] },
+      ],
+    }
+    const gap = (lineSpacing: 'tight' | 'normal' | 'loose') => {
+      const deck = buildDeck({ songs: [uneven], flows: {}, themeId: 'night', linesPerSlide: 2, lineSpacing })
+      return lyricSlides(deck).map((s) => lay(deck, s).rowGapPt)
+    }
+    expect(gap('loose')[0]).toBeGreaterThan(gap('normal')[0]!)
+    expect(gap('normal')[0]).toBeGreaterThan(gap('tight')[0]!)
+    expect(gap('loose')[1]).toBeCloseTo(gap('loose')[0]!, 5)
+  })
+
+  it('on a four-row slide, 宽松 shrinks the text a little rather than lose its gap', () => {
+    const deck = buildDeck({ songs: [song], flows: { s1: 'C' }, themeId: 'night', lineSpacing: 'loose' })
+    const normal = buildDeck({ songs: [song], flows: { s1: 'C' }, themeId: 'night' })
+    const loose = lay(deck, lyricSlides(deck)[0]!)
+    const std = lay(normal, lyricSlides(normal)[0]!)
+    expect(loose.rows).toHaveLength(4)
+    expect(loose.rowGapPt).toBeGreaterThan(std.rowGapPt)
+    expect(loose.zhPt).toBeLessThan(std.zhPt)
+    expect(loose.zhPt).toBeGreaterThanOrEqual(45 * 0.85 - 1e-9)
+  })
+
   it('on a slide too full for 宽松, keeps as much of the gap as fits instead of closing it', () => {
     const deck = buildDeck({ songs: [song], flows: { s1: 'C' }, themeId: 'night', lineSpacing: 'loose' })
     const normal = buildDeck({ songs: [song], flows: { s1: 'C' }, themeId: 'night' })

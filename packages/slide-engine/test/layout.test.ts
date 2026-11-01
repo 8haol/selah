@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, lineNeedsBreak, CONTENT_W_PT, MAX_SCALE, MIN_SCALE, PY_LINE, ZH_LINE, rowHeightPt, bareRowHeightPt } from '../src/layout.js'
+import { cellsFor, cellWidthPt, measureLatinPt, wrapLine, layoutSlide, countRows, lineNeedsBreak, CONTENT_W_PT, DEFAULT_ROW_GAP, GAP_FLOOR, MAX_SCALE, MIN_SCALE, PY_LINE, ZH_LINE, rowHeightPt, bareRowHeightPt } from '../src/layout.js'
 import { getTheme } from '../src/themes.js'
 import { annotateLine } from '../src/pinyin.js'
 import type { LyricLine } from '../src/types.js'
@@ -78,11 +78,11 @@ describe('layoutSlide', () => {
     expect(lay.pyPt).toBeCloseTo(Math.round(lay.zhPt * 0.5 * 2) / 2, 5)
     expect(lay.rows.length).toBe(2)
   })
-  it('never goes below 45/35 and keeps four short rows at scale 1', () => {
+  it('keeps four short rows and their gap, giving up a little size rather than the gap', () => {
     const lay = layoutSlide([L('一二三四五六七'), L('一二三四五六七'), L('一二三四五六七'), L('一二三四五六七')], night)
-    expect(lay.scale).toBeGreaterThanOrEqual(1)
-    expect(lay.zhPt).toBeGreaterThanOrEqual(45)
     expect(lay.rows.length).toBe(4)
+    expect(lay.scale).toBeGreaterThanOrEqual(GAP_FLOOR)
+    expect(lay.rowGapPt / lay.scale).toBeCloseTo(DEFAULT_ROW_GAP, 5)
     expect(lay.blockHeightPt).toBeLessThanOrEqual(393 - 64 + 0.001)
   })
   it('rowHeightPt is the two exact line heights the export sets', () => { expect(rowHeightPt(45, 35)).toBeCloseTo(45 * ZH_LINE + 35 * PY_LINE, 5) })
